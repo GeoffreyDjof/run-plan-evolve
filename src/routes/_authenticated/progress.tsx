@@ -71,7 +71,7 @@ function Progress() {
           {data.logs.slice(0, 5).map(l => (
             <div key={l.id} className="text-xs flex items-center justify-between">
               <span className="text-muted-foreground tabular">{new Date(l.created_at).toLocaleDateString()}</span>
-              <span>RPE {l.rpe} · fatigue {l.fatigue_level.toLowerCase()}</span>
+              <span>RPE {l.rpe ?? "—"} · fatigue {(l.fatigue_level ?? "normal").toLowerCase()}</span>
               <span className="tabular text-primary">{l.calculated_load}</span>
             </div>
           ))}
