@@ -25,7 +25,7 @@ export const WORKOUT_TYPE_LABELS: Record<WorkoutType, string> = {
   RACE: "Race Day",
 };
 
-export const HARD_TYPES: WorkoutType[] = ["VMA_SHORT", "VMA_LONG", "THRESHOLD", "TEN_K_PACE", "HILLS"];
+export const HARD_TYPES: WorkoutType[] = ["VMA_SHORT", "VMA_LONG", "THRESHOLD", "TEN_K_PACE", "HILLS", "TEST"];
 
 export interface WorkoutDraft {
   week_number: number;
