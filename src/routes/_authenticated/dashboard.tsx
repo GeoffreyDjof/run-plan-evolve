@@ -68,8 +68,8 @@ function Dashboard() {
 
       {next && <NextWorkoutCard workout={next} vma={Number(profile.vma_kmh)} />}
 
-      <section>
-      {next && <NextWorkoutCard workout={next} vma={Number(profile.vma_kmh)} />}
+
+
 
       {summary && (
         <section className="grid grid-cols-3 gap-2">
@@ -123,6 +123,11 @@ function Dashboard() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <WorkoutTypeBadge type={w.workout_type as any} />
+                  {matchedSet.get(w.id) === "AUTO_MATCHED" || matchedSet.get(w.id) === "MANUALLY_MATCHED" ? (
+                    <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-success/15 text-success">Matched</span>
+                  ) : matchedSet.get(w.id) === "NEEDS_REVIEW" ? (
+                    <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning">Review</span>
+                  ) : null}
                 </div>
                 <div className="text-sm font-medium truncate">{w.title}</div>
                 <div className="text-xs text-muted-foreground tabular">
