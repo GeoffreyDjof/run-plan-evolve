@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_splits: {
+        Row: {
+          average_heart_rate: number | null
+          average_pace_sec_per_km: number | null
+          distance_meters: number
+          duration_seconds: number
+          elevation_gain_meters: number | null
+          id: string
+          imported_activity_id: string
+          split_index: number
+        }
+        Insert: {
+          average_heart_rate?: number | null
+          average_pace_sec_per_km?: number | null
+          distance_meters?: number
+          duration_seconds?: number
+          elevation_gain_meters?: number | null
+          id?: string
+          imported_activity_id: string
+          split_index: number
+        }
+        Update: {
+          average_heart_rate?: number | null
+          average_pace_sec_per_km?: number | null
+          distance_meters?: number
+          duration_seconds?: number
+          elevation_gain_meters?: number | null
+          id?: string
+          imported_activity_id?: string
+          split_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_splits_imported_activity_id_fkey"
+            columns: ["imported_activity_id"]
+            isOneToOne: false
+            referencedRelation: "imported_activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athlete_profiles: {
         Row: {
           age: number | null
@@ -65,6 +106,132 @@ export type Database = {
         }
         Relationships: []
       }
+      imported_activities: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["activity_kind"]
+          average_cadence: number | null
+          average_heart_rate: number | null
+          average_pace_sec_per_km: number | null
+          average_speed_kmh: number | null
+          calories: number | null
+          created_at: string
+          distance_meters: number
+          duration_seconds: number
+          elevation_gain_meters: number | null
+          file_type: Database["public"]["Enums"]["activity_file_type"]
+          id: string
+          max_heart_rate: number | null
+          moving_time_seconds: number | null
+          original_filename: string | null
+          raw_summary: Json | null
+          source_type: Database["public"]["Enums"]["activity_source_type"]
+          start_time: string
+          timezone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activity_type?: Database["public"]["Enums"]["activity_kind"]
+          average_cadence?: number | null
+          average_heart_rate?: number | null
+          average_pace_sec_per_km?: number | null
+          average_speed_kmh?: number | null
+          calories?: number | null
+          created_at?: string
+          distance_meters?: number
+          duration_seconds?: number
+          elevation_gain_meters?: number | null
+          file_type?: Database["public"]["Enums"]["activity_file_type"]
+          id?: string
+          max_heart_rate?: number | null
+          moving_time_seconds?: number | null
+          original_filename?: string | null
+          raw_summary?: Json | null
+          source_type?: Database["public"]["Enums"]["activity_source_type"]
+          start_time: string
+          timezone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activity_type?: Database["public"]["Enums"]["activity_kind"]
+          average_cadence?: number | null
+          average_heart_rate?: number | null
+          average_pace_sec_per_km?: number | null
+          average_speed_kmh?: number | null
+          calories?: number | null
+          created_at?: string
+          distance_meters?: number
+          duration_seconds?: number
+          elevation_gain_meters?: number | null
+          file_type?: Database["public"]["Enums"]["activity_file_type"]
+          id?: string
+          max_heart_rate?: number | null
+          moving_time_seconds?: number | null
+          original_filename?: string | null
+          raw_summary?: Json | null
+          source_type?: Database["public"]["Enums"]["activity_source_type"]
+          start_time?: string
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      post_activity_feedback: {
+        Row: {
+          comment: string | null
+          created_at: string
+          fatigue_level: Database["public"]["Enums"]["fatigue_level"] | null
+          id: string
+          imported_activity_id: string
+          pain_level: Database["public"]["Enums"]["pain_level"] | null
+          rpe: number | null
+          sleep_quality: Database["public"]["Enums"]["sleep_quality"] | null
+          user_id: string
+          workout_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          fatigue_level?: Database["public"]["Enums"]["fatigue_level"] | null
+          id?: string
+          imported_activity_id: string
+          pain_level?: Database["public"]["Enums"]["pain_level"] | null
+          rpe?: number | null
+          sleep_quality?: Database["public"]["Enums"]["sleep_quality"] | null
+          user_id: string
+          workout_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          fatigue_level?: Database["public"]["Enums"]["fatigue_level"] | null
+          id?: string
+          imported_activity_id?: string
+          pain_level?: Database["public"]["Enums"]["pain_level"] | null
+          rpe?: number | null
+          sleep_quality?: Database["public"]["Enums"]["sleep_quality"] | null
+          user_id?: string
+          workout_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_activity_feedback_imported_activity_id_fkey"
+            columns: ["imported_activity_id"]
+            isOneToOne: false
+            referencedRelation: "imported_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_activity_feedback_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_plans: {
         Row: {
           created_at: string
@@ -101,6 +268,53 @@ export type Database = {
         }
         Relationships: []
       }
+      uploaded_activity_files: {
+        Row: {
+          created_at: string
+          file_size_bytes: number
+          file_type: Database["public"]["Enums"]["activity_file_type"]
+          id: string
+          imported_activity_id: string | null
+          original_filename: string
+          parsing_error: string | null
+          parsing_status: Database["public"]["Enums"]["file_parsing_status"]
+          storage_path: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_size_bytes?: number
+          file_type?: Database["public"]["Enums"]["activity_file_type"]
+          id?: string
+          imported_activity_id?: string | null
+          original_filename: string
+          parsing_error?: string | null
+          parsing_status?: Database["public"]["Enums"]["file_parsing_status"]
+          storage_path?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_size_bytes?: number
+          file_type?: Database["public"]["Enums"]["activity_file_type"]
+          id?: string
+          imported_activity_id?: string | null
+          original_filename?: string
+          parsing_error?: string | null
+          parsing_status?: Database["public"]["Enums"]["file_parsing_status"]
+          storage_path?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uploaded_activity_files_imported_activity_id_fkey"
+            columns: ["imported_activity_id"]
+            isOneToOne: false
+            referencedRelation: "imported_activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vma_tests: {
         Row: {
           created_at: string
@@ -136,6 +350,69 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      workout_activity_matches: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          distance_score: number
+          id: string
+          imported_activity_id: string
+          intensity_score: number
+          match_reason: string | null
+          match_status: Database["public"]["Enums"]["match_status"]
+          time_score: number
+          type_score: number
+          updated_at: string
+          user_id: string
+          workout_id: string
+        }
+        Insert: {
+          confidence_score?: number
+          created_at?: string
+          distance_score?: number
+          id?: string
+          imported_activity_id: string
+          intensity_score?: number
+          match_reason?: string | null
+          match_status?: Database["public"]["Enums"]["match_status"]
+          time_score?: number
+          type_score?: number
+          updated_at?: string
+          user_id: string
+          workout_id: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          distance_score?: number
+          id?: string
+          imported_activity_id?: string
+          intensity_score?: number
+          match_reason?: string | null
+          match_status?: Database["public"]["Enums"]["match_status"]
+          time_score?: number
+          type_score?: number
+          updated_at?: string
+          user_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_activity_matches_imported_activity_id_fkey"
+            columns: ["imported_activity_id"]
+            isOneToOne: false
+            referencedRelation: "imported_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_activity_matches_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workout_logs: {
         Row: {
@@ -300,8 +577,17 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      activity_file_type: "FIT" | "GPX" | "TCX" | "CSV" | "UNKNOWN"
+      activity_kind: "RUN" | "RIDE" | "WALK" | "STRENGTH" | "OTHER"
+      activity_source_type: "FILE_UPLOAD" | "MANUAL_ENTRY"
       completion_status: "FULL" | "PARTIAL" | "NONE"
       fatigue_level: "LOW" | "NORMAL" | "HIGH"
+      file_parsing_status: "PENDING" | "PARSED" | "FAILED" | "UNSUPPORTED"
+      match_status:
+        | "AUTO_MATCHED"
+        | "MANUALLY_MATCHED"
+        | "REJECTED"
+        | "NEEDS_REVIEW"
       pain_level: "NONE" | "MILD" | "MODERATE" | "SEVERE"
       plan_status: "ACTIVE" | "COMPLETED" | "ARCHIVED"
       runner_level: "RETURNING" | "REGULAR" | "ADVANCED"
@@ -452,8 +738,18 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_file_type: ["FIT", "GPX", "TCX", "CSV", "UNKNOWN"],
+      activity_kind: ["RUN", "RIDE", "WALK", "STRENGTH", "OTHER"],
+      activity_source_type: ["FILE_UPLOAD", "MANUAL_ENTRY"],
       completion_status: ["FULL", "PARTIAL", "NONE"],
       fatigue_level: ["LOW", "NORMAL", "HIGH"],
+      file_parsing_status: ["PENDING", "PARSED", "FAILED", "UNSUPPORTED"],
+      match_status: [
+        "AUTO_MATCHED",
+        "MANUALLY_MATCHED",
+        "REJECTED",
+        "NEEDS_REVIEW",
+      ],
       pain_level: ["NONE", "MILD", "MODERATE", "SEVERE"],
       plan_status: ["ACTIVE", "COMPLETED", "ARCHIVED"],
       runner_level: ["RETURNING", "REGULAR", "ADVANCED"],
