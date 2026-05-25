@@ -5,6 +5,17 @@ import { getPlanDraftsByWeek, scheduleWorkoutsToDates, mondayOf, addDays } from 
 import { plannedRPE } from "@/lib/training/paces";
 import { EQUIVALENTS, templateToDraft } from "@/lib/training/alternatives";
 import { generateWorkout } from "@/lib/training/generator";
+import {
+  evaluateProposal,
+  evaluatePlan,
+  hasBlocking,
+  type WorkoutSnapshot,
+  type LastLog,
+  type RuleWarning,
+} from "@/lib/training/rules";
+import { decideMissed } from "@/lib/training/missed";
+import { recalibrateWeek, shouldRecalibrate, type RecalInput } from "@/lib/training/recalibration";
+import type { WorkoutType } from "@/lib/training/types";
 
 const onboardingInput = z.object({
   name: z.string().min(1).max(60),
@@ -34,7 +45,6 @@ export const completeOnboarding = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // upsert profile
     const { error: upErr } = await supabase.from("athlete_profiles").upsert({
       user_id: userId,
       name: data.name,
@@ -50,10 +60,8 @@ export const completeOnboarding = createServerFn({ method: "POST" })
     }, { onConflict: "user_id" });
     if (upErr) throw new Error(upErr.message);
 
-    // delete existing active plans + their workouts
     await supabase.from("training_plans").delete().eq("user_id", userId);
 
-    // start the plan on the Monday of this week (or earlier if race is sooner)
     const race = new Date(data.race_date + "T00:00:00");
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -71,8 +79,7 @@ export const completeOnboarding = createServerFn({ method: "POST" })
         current_week: 1,
         status: "ACTIVE",
       })
-      .select("*")
-      .single();
+      .select("*").single();
     if (planErr) throw new Error(planErr.message);
 
     const drafts = getPlanDraftsByWeek();
@@ -139,12 +146,15 @@ export const getPlanWorkouts = createServerFn({ method: "GET" })
     const { data: plan } = await supabase
       .from("training_plans").select("*").eq("user_id", userId)
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!plan) return { plan: null, workouts: [] };
+    if (!plan) return { plan: null, workouts: [], lastLog: null };
     const { data: workouts, error } = await supabase
       .from("workouts").select("*").eq("plan_id", plan.id)
       .order("scheduled_date", { ascending: true });
     if (error) throw new Error(error.message);
-    return { plan, workouts: workouts ?? [] };
+    const { data: lastLog } = await supabase
+      .from("workout_logs").select("workout_id, pain_level, fatigue_level, completed_status, created_at")
+      .eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    return { plan, workouts: workouts ?? [], lastLog: lastLog ?? null };
   });
 
 export const getWorkout = createServerFn({ method: "GET" })
@@ -161,16 +171,106 @@ export const getWorkout = createServerFn({ method: "GET" })
     return { workout: w, log };
   });
 
-export const rescheduleWorkout = createServerFn({ method: "POST" })
+// ---- Internal helpers (server-only) ----
+
+async function loadPlanContext(supabase: any, userId: string) {
+  const { data: plan } = await supabase.from("training_plans").select("*")
+    .eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!plan) throw new Error("No active plan");
+  const { data: workouts } = await supabase.from("workouts").select(
+    "id, scheduled_date, workout_type, estimated_load, status, week_number, title, estimated_duration_minutes"
+  ).eq("plan_id", plan.id);
+  const { data: lastLog } = await supabase
+    .from("workout_logs").select("workout_id, pain_level, fatigue_level, completed_status, created_at")
+    .eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return {
+    plan,
+    workouts: (workouts ?? []) as Array<WorkoutSnapshot & { week_number: number; title: string; estimated_duration_minutes: number | null }>,
+    lastLog: (lastLog ?? null) as LastLog | null,
+  };
+}
+
+// ---- Preview / validation ----
+
+export const previewPlanChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), date: z.string() }).parse(d))
+  .inputValidator((d) => z.object({
+    kind: z.enum(["RESCHEDULE", "REPLACE", "GENERATE"]),
+    workoutId: z.string().uuid().nullable(),
+    scheduled_date: z.string(),
+    workout_type: z.enum(["VMA_SHORT","VMA_LONG","THRESHOLD","TEN_K_PACE","EASY","LONG_RUN","RECOVERY","HILLS","TAPER","TEST","RACE"]),
+    estimated_load: z.number().int().min(0).max(2000),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const ctx = await loadPlanContext(supabase, userId);
+    const warnings = evaluateProposal(
+      ctx.workouts.map((w) => ({
+        id: w.id, scheduled_date: w.scheduled_date, workout_type: w.workout_type as WorkoutType,
+        estimated_load: w.estimated_load, status: w.status,
+      })),
+      {
+        workoutId: data.workoutId,
+        scheduled_date: data.scheduled_date,
+        workout_type: data.workout_type,
+        estimated_load: data.estimated_load,
+      },
+      ctx.lastLog,
+    );
+    // For REPLACE specifically, prepend an INFO that the swap keeps stimulus
+    if (data.kind === "REPLACE") {
+      warnings.unshift({ severity: "INFO", code: "SAME_STIMULUS", message: "Same family — this replacement keeps the same physiological stimulus." });
+    }
+    return { warnings };
+  });
+
+// ---- Mutations with rule enforcement ----
+
+const overrideInput = z.object({
+  override: z.boolean().optional(),
+  override_reason: z.string().max(300).optional(),
+});
+
+export const rescheduleWorkout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    id: z.string().uuid(),
+    date: z.string(),
+  }).merge(overrideInput).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const ctx = await loadPlanContext(supabase, userId);
+    const orig = ctx.workouts.find((w) => w.id === data.id);
+    if (!orig) throw new Error("Workout not found");
+
+    const warnings = evaluateProposal(
+      ctx.workouts.map((w) => ({
+        id: w.id, scheduled_date: w.scheduled_date, workout_type: w.workout_type as WorkoutType,
+        estimated_load: w.estimated_load, status: w.status,
+      })),
+      {
+        workoutId: data.id,
+        scheduled_date: data.date,
+        workout_type: orig.workout_type as WorkoutType,
+        estimated_load: orig.estimated_load ?? 0,
+      },
+      ctx.lastLog,
+    );
+    if (hasBlocking(warnings) && !data.override) {
+      throw new Error("BLOCKING: " + warnings.find((w) => w.severity === "BLOCKING")!.message);
+    }
+    const notesUpdate = data.override && hasBlocking(warnings)
+      ? { override_reason: data.override_reason ?? "User overrode safety warning." }
+      : null;
     const { error } = await supabase.from("workouts")
-      .update({ scheduled_date: data.date, status: "RESCHEDULED" })
+      .update({
+        scheduled_date: data.date,
+        status: "RESCHEDULED",
+        ...(notesUpdate ? { notes: `[OVERRIDE] ${notesUpdate.override_reason}` } : {}),
+      })
       .eq("id", data.id).eq("user_id", userId);
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, warnings };
   });
 
 export const replaceWorkout = createServerFn({ method: "POST" })
@@ -178,19 +278,37 @@ export const replaceWorkout = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     id: z.string().uuid(),
     template_index: z.number().int().min(0),
-  }).parse(d))
+  }).merge(overrideInput).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: orig, error: oErr } = await supabase.from("workouts")
-      .select("*").eq("id", data.id).eq("user_id", userId).single();
-    if (oErr) throw new Error(oErr.message);
-    const tpl = EQUIVALENTS[orig.workout_type]?.[data.template_index];
+    const ctx = await loadPlanContext(supabase, userId);
+    const orig = ctx.workouts.find((w) => w.id === data.id);
+    if (!orig) throw new Error("Workout not found");
+    const tpl = EQUIVALENTS[orig.workout_type as WorkoutType]?.[data.template_index];
     if (!tpl) throw new Error("Invalid alternative");
-    const draft = templateToDraft(tpl, orig.week_number);
+    const draft = templateToDraft(tpl, (orig as any).week_number ?? 1);
+
+    const warnings = evaluateProposal(
+      ctx.workouts.map((w) => ({
+        id: w.id, scheduled_date: w.scheduled_date, workout_type: w.workout_type as WorkoutType,
+        estimated_load: w.estimated_load, status: w.status,
+      })),
+      {
+        workoutId: data.id, // treat as in-place change
+        scheduled_date: orig.scheduled_date,
+        workout_type: draft.workout_type,
+        estimated_load: draft.estimated_load,
+      },
+      ctx.lastLog,
+    );
+    if (hasBlocking(warnings) && !data.override) {
+      throw new Error("BLOCKING: " + warnings.find((w) => w.severity === "BLOCKING")!.message);
+    }
+
     const { data: newRow, error: nErr } = await supabase.from("workouts").insert({
-      plan_id: orig.plan_id,
+      plan_id: (orig as any).plan_id ?? null, // fallback
       user_id: userId,
-      week_number: orig.week_number,
+      week_number: (orig as any).week_number ?? 1,
       scheduled_date: orig.scheduled_date,
       workout_type: draft.workout_type,
       title: draft.title,
@@ -205,11 +323,23 @@ export const replaceWorkout = createServerFn({ method: "POST" })
       estimated_load: draft.estimated_load,
       difficulty: draft.difficulty,
       status: "PLANNED",
+      notes: data.override && hasBlocking(warnings)
+        ? `[OVERRIDE] ${data.override_reason ?? "User overrode safety warning."}`
+        : null,
     }).select("*").single();
     if (nErr) throw new Error(nErr.message);
+
+    // Need plan_id for replacement — fetch via direct query if missing
+    if (!newRow.plan_id) {
+      const { data: planRow } = await supabase
+        .from("workouts").select("plan_id").eq("id", data.id).single();
+      if (planRow) {
+        await supabase.from("workouts").update({ plan_id: planRow.plan_id }).eq("id", newRow.id);
+      }
+    }
     await supabase.from("workouts").update({ status: "REPLACED", replaced_by_workout_id: newRow.id })
-      .eq("id", orig.id);
-    return { ok: true, newId: newRow.id };
+      .eq("id", data.id);
+    return { ok: true, newId: newRow.id, warnings };
   });
 
 export const generateAndSaveWorkout = createServerFn({ method: "POST" })
@@ -222,51 +352,56 @@ export const generateAndSaveWorkout = createServerFn({ method: "POST" })
     monotony: z.enum(["CLASSIC","VARIED","PLAYFUL"]),
     scheduled_date: z.string(),
     save: z.boolean(),
-  }).parse(d))
+  }).merge(overrideInput).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: plan } = await supabase.from("training_plans").select("*")
-      .eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!plan) throw new Error("No active plan");
+    const ctx = await loadPlanContext(supabase, userId);
 
-    // compute current week
-    const start = new Date(plan.start_date + "T00:00:00");
+    const start = new Date(ctx.plan.start_date + "T00:00:00");
     const sched = new Date(data.scheduled_date + "T00:00:00");
     const weekNum = Math.max(1, Math.min(12, Math.floor((sched.getTime() - start.getTime()) / (7 * 86400000)) + 1));
 
     const gen = generateWorkout({
-      type: data.type,
-      availableTime: data.availableTime,
-      difficulty: data.difficulty,
-      terrain: data.terrain,
-      monotony: data.monotony,
-      weekNumber: weekNum,
+      type: data.type, availableTime: data.availableTime, difficulty: data.difficulty,
+      terrain: data.terrain, monotony: data.monotony, weekNumber: weekNum,
     });
 
-    if (!data.save) return { preview: gen };
+    const warnings = evaluateProposal(
+      ctx.workouts.map((w) => ({
+        id: w.id, scheduled_date: w.scheduled_date, workout_type: w.workout_type as WorkoutType,
+        estimated_load: w.estimated_load, status: w.status,
+      })),
+      {
+        workoutId: null,
+        scheduled_date: data.scheduled_date,
+        workout_type: gen.workout_type,
+        estimated_load: gen.estimated_load,
+      },
+      ctx.lastLog,
+    );
+    if (!data.save) return { preview: gen, warnings };
+
+    if (hasBlocking(warnings) && !data.override) {
+      throw new Error("BLOCKING: " + warnings.find((w) => w.severity === "BLOCKING")!.message);
+    }
 
     const { data: row, error } = await supabase.from("workouts").insert({
-      plan_id: plan.id,
-      user_id: userId,
-      week_number: weekNum,
+      plan_id: ctx.plan.id, user_id: userId, week_number: weekNum,
       scheduled_date: data.scheduled_date,
-      workout_type: gen.workout_type,
-      title: gen.title,
-      objective: gen.objective,
-      warmup: gen.warmup,
-      main_set: gen.main_set,
-      recovery: gen.recovery,
-      cooldown: gen.cooldown,
+      workout_type: gen.workout_type, title: gen.title, objective: gen.objective,
+      warmup: gen.warmup, main_set: gen.main_set, recovery: gen.recovery, cooldown: gen.cooldown,
       target_vma_min_percent: gen.target_vma_min_percent,
       target_vma_max_percent: gen.target_vma_max_percent,
       estimated_duration_minutes: gen.estimated_duration_minutes,
-      estimated_load: gen.estimated_load,
-      difficulty: gen.difficulty,
+      estimated_load: gen.estimated_load, difficulty: gen.difficulty,
       status: "PLANNED",
-      notes: gen.reasoning.join(" • "),
+      notes: [
+        ...gen.reasoning,
+        data.override && hasBlocking(warnings) ? `[OVERRIDE] ${data.override_reason ?? "User overrode safety warning."}` : null,
+      ].filter(Boolean).join(" • "),
     }).select("*").single();
     if (error) throw new Error(error.message);
-    return { preview: gen, id: row.id };
+    return { preview: gen, id: row.id, warnings };
   });
 
 export const logWorkoutCompletion = createServerFn({ method: "POST" })
@@ -288,18 +423,14 @@ export const logWorkoutCompletion = createServerFn({ method: "POST" })
     const load = Math.round((data.actual_duration_minutes ?? 0) * data.rpe);
     await supabase.from("workout_logs").delete().eq("workout_id", data.workout_id);
     const { error } = await supabase.from("workout_logs").insert({
-      workout_id: data.workout_id,
-      user_id: userId,
+      workout_id: data.workout_id, user_id: userId,
       completed_status: data.completed_status,
       actual_duration_minutes: data.actual_duration_minutes ?? null,
       actual_distance_km: data.actual_distance_km ?? null,
       average_pace: data.average_pace ?? null,
-      rpe: data.rpe,
-      pain_level: data.pain_level,
-      fatigue_level: data.fatigue_level,
-      sleep_quality: data.sleep_quality,
-      comment: data.comment ?? null,
-      calculated_load: load,
+      rpe: data.rpe, pain_level: data.pain_level,
+      fatigue_level: data.fatigue_level, sleep_quality: data.sleep_quality,
+      comment: data.comment ?? null, calculated_load: load,
     });
     if (error) throw new Error(error.message);
     const newStatus = data.completed_status === "FULL" ? "COMPLETED"
@@ -320,4 +451,144 @@ export const getProgressData = createServerFn({ method: "GET" })
       supabase.from("workout_logs").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
     ]);
     return { plan, workouts: workouts ?? [], logs: logs ?? [] };
+  });
+
+// ---- Dashboard warnings ----
+
+export const getPlanWarnings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const ctx = await loadPlanContext(supabase, userId);
+    const today = new Date().toISOString().slice(0, 10);
+    const future = ctx.workouts.filter((w) => w.scheduled_date >= today);
+    const warnings = evaluatePlan(
+      future.map((w) => ({
+        id: w.id, scheduled_date: w.scheduled_date, workout_type: w.workout_type as WorkoutType,
+        estimated_load: w.estimated_load, status: w.status,
+      })),
+      ctx.lastLog,
+    );
+    return { warnings, lastLog: ctx.lastLog };
+  });
+
+// ---- Missed workout policy ----
+
+export const getMissedDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workout_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const ctx = await loadPlanContext(supabase, userId);
+    const missed = ctx.workouts.find((w) => w.id === data.workout_id);
+    if (!missed) throw new Error("Not found");
+    const upcoming = ctx.workouts
+      .filter((w) => w.scheduled_date > missed.scheduled_date && (w.status === "PLANNED" || w.status === "RESCHEDULED"))
+      .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
+      .map((w) => ({ id: w.id, scheduled_date: w.scheduled_date, workout_type: w.workout_type as WorkoutType }));
+    return {
+      decision: decideMissed({
+        missedType: missed.workout_type as WorkoutType,
+        missedDate: missed.scheduled_date,
+        upcoming,
+      }),
+    };
+  });
+
+// ---- Recalibration ----
+
+export const previewRecalibration = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ manualTrigger: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const ctx = await loadPlanContext(supabase, userId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monday = mondayOf(today);
+    const weekStart = monday.toISOString().slice(0, 10);
+    const weekEnd = addDays(monday, 6).toISOString().slice(0, 10);
+    const inWeek = ctx.workouts.filter(
+      (w) => w.scheduled_date >= weekStart && w.scheduled_date <= weekEnd,
+    );
+    const missedThisWeek = inWeek.filter((w) => w.status === "MISSED").length;
+
+    const { data: recentLogs } = await supabase
+      .from("workout_logs").select("fatigue_level, pain_level, created_at")
+      .eq("user_id", userId).order("created_at", { ascending: false }).limit(3);
+    let highFatigueStreak = 0;
+    for (const l of recentLogs ?? []) {
+      if (l.fatigue_level === "HIGH") highFatigueStreak++;
+      else break;
+    }
+    const hasPainFlag = (recentLogs ?? []).some(
+      (l) => l.pain_level === "MODERATE" || l.pain_level === "SEVERE",
+    );
+
+    const recalInputs: RecalInput[] = inWeek.map((w) => ({
+      id: w.id, scheduled_date: w.scheduled_date,
+      workout_type: w.workout_type as WorkoutType,
+      title: (w as any).title ?? "",
+      estimated_duration_minutes: (w as any).estimated_duration_minutes ?? null,
+      estimated_load: w.estimated_load, status: w.status,
+    }));
+
+    const proposal = recalibrateWeek({
+      workouts: recalInputs,
+      weekStart,
+      missedThisWeek,
+      highFatigueStreak,
+      hasPainFlag,
+      manualTrigger: data.manualTrigger,
+    });
+    return {
+      proposal,
+      triggers: shouldRecalibrate({
+        workouts: recalInputs, weekStart, missedThisWeek, highFatigueStreak,
+        hasPainFlag, manualTrigger: data.manualTrigger,
+      }),
+      originalWeek: recalInputs,
+    };
+  });
+
+export const applyRecalibration = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    actions: z.array(z.object({
+      workoutId: z.string().uuid(),
+      action: z.enum(["KEEP", "DOWNGRADE_TO_EASY", "REMOVE"]),
+      new_type: z.string().optional(),
+      new_title: z.string().optional(),
+      new_main_set: z.string().optional(),
+      new_duration: z.number().optional(),
+      new_load: z.number().optional(),
+    })),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    for (const a of data.actions) {
+      if (a.action === "KEEP") continue;
+      if (a.action === "REMOVE") {
+        await supabase.from("workouts").update({ status: "REPLACED", notes: "[RECALIBRATED] Removed from week." })
+          .eq("id", a.workoutId).eq("user_id", userId);
+        continue;
+      }
+      // DOWNGRADE_TO_EASY
+      await supabase.from("workouts").update({
+        workout_type: a.new_type ?? "EASY",
+        title: a.new_title ?? "Easy run",
+        main_set: a.new_main_set ?? "Easy continuous",
+        warmup: "Smooth easy start",
+        recovery: "—",
+        cooldown: "Stretch",
+        objective: "Recalibrated — protect recovery, keep aerobic stimulus.",
+        target_vma_min_percent: 65,
+        target_vma_max_percent: 75,
+        estimated_duration_minutes: a.new_duration ?? 40,
+        estimated_load: a.new_load ?? 120,
+        difficulty: 2,
+        notes: "[RECALIBRATED] Hard session downgraded to easy.",
+      }).eq("id", a.workoutId).eq("user_id", userId);
+    }
+    return { ok: true };
   });
