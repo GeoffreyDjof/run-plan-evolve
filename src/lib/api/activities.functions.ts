@@ -329,3 +329,68 @@ export const getPlannedVsActual = createServerFn({ method: "GET" })
 
     return { rows };
   });
+
+import { evaluateActuals, type ActualActivity } from "@/lib/training/actual-safety";
+
+export const getActivitySummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const since = new Date();
+    since.setDate(since.getDate() - 21);
+
+    const [{ data: activities }, { data: matches }, { data: workouts }, { data: feedback }] = await Promise.all([
+      supabase.from("imported_activities").select("*").eq("user_id", userId)
+        .gte("start_time", since.toISOString()).order("start_time", { ascending: false }),
+      supabase.from("workout_activity_matches").select("*").eq("user_id", userId),
+      supabase.from("workouts").select("id, workout_type").eq("user_id", userId),
+      supabase.from("post_activity_feedback").select("*").eq("user_id", userId),
+    ]);
+
+    const workoutType = new Map((workouts ?? []).map((w) => [w.id, w.workout_type]));
+    const matchByAct = new Map<string, any>();
+    for (const m of matches ?? []) {
+      if (m.match_status === "REJECTED") continue;
+      const cur = matchByAct.get(m.imported_activity_id);
+      if (!cur || m.confidence_score > cur.confidence_score) matchByAct.set(m.imported_activity_id, m);
+    }
+    const fbByAct = new Map((feedback ?? []).map((f) => [f.imported_activity_id, f]));
+
+    const actuals: ActualActivity[] = (activities ?? []).map((a) => {
+      const m = matchByAct.get(a.id);
+      const fb = fbByAct.get(a.id);
+      return {
+        id: a.id,
+        start_time: a.start_time,
+        duration_seconds: a.duration_seconds,
+        distance_meters: Number(a.distance_meters),
+        matched_workout_type: m ? (workoutType.get(m.workout_id) as any) ?? null : null,
+        rpe: fb?.rpe ?? null,
+        pain_level: fb?.pain_level ?? null,
+      };
+    });
+
+    // Weekly totals (last 7 days)
+    const weekAgo = Date.now() - 7 * 86400000;
+    const week = (activities ?? []).filter((a) => new Date(a.start_time).getTime() >= weekAgo);
+    const weekDistanceKm = week.reduce((s, a) => s + Number(a.distance_meters) / 1000, 0);
+    const weekDurationMin = week.reduce((s, a) => s + a.duration_seconds / 60, 0);
+    const weekRpeLoad = week.reduce((s, a) => {
+      const fb = fbByAct.get(a.id);
+      return s + (a.duration_seconds / 60) * (fb?.rpe ?? 4);
+    }, 0);
+
+    const unmatchedCount = (activities ?? []).filter((a) => !matchByAct.get(a.id)).length;
+    const needsReviewCount = Array.from(matchByAct.values()).filter((m) => m.match_status === "NEEDS_REVIEW").length;
+
+    return {
+      latest: activities?.[0] ?? null,
+      unmatchedCount,
+      needsReviewCount,
+      weekDistanceKm: +weekDistanceKm.toFixed(2),
+      weekDurationMin: Math.round(weekDurationMin),
+      weekRpeLoad: Math.round(weekRpeLoad),
+      actualWarnings: evaluateActuals(actuals),
+      matchedWorkoutIds: Array.from(matchByAct.values()).map((m) => ({ id: m.workout_id, status: m.match_status })),
+    };
+  });
