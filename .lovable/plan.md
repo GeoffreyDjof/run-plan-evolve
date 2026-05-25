@@ -1,84 +1,75 @@
-# 10K Training Coach — MVP Plan
+# Manual Activity Upload & Matching
 
-A mobile-first, dark-mode running coach app built on React + TypeScript + TanStack Start + Lovable Cloud (Supabase). Single-user friendly, multi-user ready.
+No Garmin/Strava/OAuth code exists in the project today, so nothing to remove. The Google sign-in on `/login` is unrelated and stays. This plan is purely additive.
 
-## 1. Backend (Lovable Cloud)
+## 1. Database (single migration)
 
-Enable Lovable Cloud, then create these tables with RLS (`user_id = auth.uid()` on all owned rows).
+New tables, all RLS-locked to `auth.uid() = user_id`:
 
-- `athlete_profiles` — vma_kmh, target_10k_time, race_date, sessions_per_week, preferred_days (text[]), current_level, cross_training_available
-- `training_plans` — name, start_date, race_date, duration_weeks, current_week, status
-- `workouts` — plan_id, week_number, scheduled_date, workout_type (enum), title, objective, warmup, main_set, recovery, cooldown, target_vma_min/max_percent, target_pace_min/max, estimated_duration_minutes, estimated_load, difficulty, status (enum), replaced_by_workout_id, notes
-- `workout_logs` — workout_id, completed_status, actual_duration_minutes, actual_distance_km, average_pace, rpe, pain_level, fatigue_level, sleep_quality, comment, calculated_load
-- `vma_tests` — date, test_type, distance_meters, duration_minutes, estimated_vma_kmh, notes
+- `imported_activities` — parsed activity summary (all fields per spec, `raw_summary jsonb`).
+- `activity_splits` — per-split rows, FK by `imported_activity_id`.
+- `uploaded_activity_files` — upload record + parsing status (`PENDING|PARSED|FAILED|UNSUPPORTED`).
+- `workout_activity_matches` — scored match between a workout and an activity.
+- `post_activity_feedback` — RPE/pain/fatigue/sleep/comment tied to an activity (+ optional workout).
 
-Enums: `workout_type`, `workout_status` (PLANNED/COMPLETED/PARTIAL/MISSED/RESCHEDULED/REPLACED).
+Plus a private Storage bucket `activity-files` with per-user-folder RLS (`{user_id}/...`).
 
-User name/age live on `athlete_profiles` (avoid duplicating `auth.users`). Trigger: auto-create empty profile on signup.
+No `access_token`, `refresh_token`, `client_secret`, `provider_user_id`, or webhook columns anywhere.
 
-## 2. Auth
+## 2. Parsers (`src/lib/activities/`)
 
-Email/password + Google OAuth via Lovable broker. `_authenticated` layout guard. `/login`, `/onboarding`, then app routes.
+Pure TS, run client-side (no server upload needed for parsing — file is read in the browser, summary shown, then persisted):
 
-## 3. Core training logic (`src/lib/training/`)
+- `gpx.ts` — DOMParser on trackpoints: distance via haversine, duration from timestamps, elevation gain (positive deltas), pace.
+- `tcx.ts` — DOMParser on `Activity/Lap/Track/Trackpoint`: distance, duration, HR, cadence, splits per lap.
+- `csv.ts` — header-driven (`date,activity_type,distance_km,duration,average_heart_rate,max_heart_rate,elevation_gain_meters`).
+- `fit.ts` — interface + clear `UNSUPPORTED` return ("FIT parsing is prepared but not enabled yet. Please upload GPX or TCX for now."). No fake values.
+- `detect.ts` — pick parser by extension; `index.ts` exports `parseActivityFile(file): Promise<ParsedActivity>`.
 
-- `paceFromVMA(vma, pct)` → `{ kmh, paceStr: "m:ss/km" }`
-- `estimateWorkoutLoad(minutes, rpe)` → minutes × rpe
-- `PACE_ZONES` constant for EASY/STEADY/THRESHOLD/TEN_K_PACE/VMA_LONG/VMA_SHORT with min/max % VMA
-- `seedPlan(profile)` — generates the full 12-week schedule from the spec, placing workouts on `preferred_days`, with recovery weeks 4 & 8 and taper week 12
-- `equivalentWorkouts(workout)` — returns same-family alternatives with comparable load
-- `generateWorkout({ type, availableTime, difficulty, terrain, monotony, week, vma })` — builds warmup/main/recovery/cooldown, paces, load, explanation
-- `safetyChecks(plan, logs)` — weekly load >+15%, hard back-to-back, high pain/fatigue before VMA/threshold; returns toast-ready warnings
+## 3. Matching engine (`src/lib/activities/matching.ts`)
 
-## 4. Routes (TanStack Start, file-based)
+Pure function `scoreMatch(workout, activity) → { type_score, date_score, duration_score, intensity_score, confidence }` using the spec's rules. Server fn `matchActivity` runs candidates across same-day ±1 ±2, returns ranked list, persists best as `AUTO_MATCHED` (≥80), `NEEDS_REVIEW` (50–79), or leaves unmatched (<50). Always shows confirmation in UI.
 
-```
-src/routes/
-  __root.tsx
-  index.tsx                      → redirect to /dashboard or /login
-  login.tsx
-  _authenticated.tsx             → auth guard
-  _authenticated/
-    onboarding.tsx               → multi-step form, seeds plan on submit
-    dashboard.tsx                → today/next workout + week summary + warnings
-    calendar.tsx                 → 12-week grid, drag-to-reschedule
-    workout.$id.tsx              → detail + actions
-    progress.tsx                 → load chart, completion stats, predicted 10K
-    generator.tsx                → custom workout builder + preview/confirm
-    settings.tsx                 → VMA, days, race date, reset/export plan
-```
+`compliance.ts` computes the 0–100 compliance score with the EASY-RPE leniency and hard-without-splits low-confidence rules.
 
-Each route uses `createServerFn` + `requireSupabaseAuth` for reads/writes, wrapped with TanStack Query (`ensureQueryData` in loader, `useSuspenseQuery` in component).
+## 4. Server functions (`src/lib/api/activities.functions.ts`)
 
-## 5. Key components
+All `requireSupabaseAuth`-protected:
 
-- `WorkoutCard` — type badge, status chip, pace, duration
-- `WorkoutTypeBadge`, `StatusChip`, `PaceDisplay`
-- `WeekStrip` (dashboard) and `CalendarGrid` (12 weeks × 7 days)
-- `CompletionLogDrawer` — yes/partial/no, duration, distance, pace, RPE slider, pain, fatigue, sleep, comment
-- `ReplaceWorkoutDialog` — side-by-side original vs replacement + load delta + reasoning
-- `GenerateWorkoutDialog` — form + preview with reasoning bullets
-- `RescheduleDialog` — date picker + conflict warnings
-- `LoadChart` (Recharts) — weekly load bars + planned vs completed
-- `WarningBanner` (sonner toasts for transient, banner for persistent)
+- `saveParsedActivity({ parsed, filename, fileType })` — inserts `imported_activities`, `activity_splits`, links `uploaded_activity_files`.
+- `saveAndMatchActivity(...)` — above + runs matcher + writes `workout_activity_matches`.
+- `manuallyMatch({ activityId, workoutId })` / `unmatch({ matchId })`.
+- `saveFeedback({ activityId, workoutId?, rpe, pain, fatigue, sleep, comment })`.
+- `listActivities()`, `getActivity(id)`, `getPlannedVsActual(weekNumber?)`.
 
-## 6. Design system (`src/styles.css`)
+## 5. UI
 
-Dark by default. Neon green accent (`oklch(0.85 0.2 145)`) as primary, deep near-black background, elevated card surface, subtle borders. Large touch targets (min 44px). Inter for body, tabular nums for paces/times. Tokens only — no hardcoded colors in components.
+- New route `/_authenticated/upload.tsx` — drag-and-drop + file picker (accept `.fit,.gpx,.tcx,.csv`), parsing status, parsed-summary preview, manual-correction form (activity type, date/time, distance, duration, avg/max HR, elevation, RPE, pain, fatigue, comment), three buttons: **Save**, **Save & match**, **Cancel**. Privacy note at bottom: *"Files are only imported when you manually upload them. No Garmin, Strava, OAuth, tokens, or external sync are used."*
+- New route `/_authenticated/activities.tsx` — list of imported activities with match status badges.
+- New route `/_authenticated/planned-vs-actual.tsx` — per-workout planned vs actual table with compliance score.
+- **Dashboard** additions: latest uploaded activity card, unmatched count, needs-review count, weekly actual distance/duration/RPE-load tile.
+- **Calendar**: workout cards get `MatchedBadge`, `NeedsReviewBadge`, or `UnmatchedActivityDot`.
+- Nav link to "Upload" in the auth shell.
 
-## 7. Seed data
+## 6. Safety engine update (`src/lib/training/rules.ts` + `safety.ts`)
 
-`seedPlan()` writes the full 12-week workout list (exact sets from spec) to `workouts` when onboarding completes, scheduled across the user's preferred days starting Monday of next week, with race day on `race_date`. Default VMA fallback 14 km/h.
+Extend `evaluatePlan` to also pull actual data:
+- `+15% actual weekly load vs prev actual week` → WARNING.
+- Moderate/severe pain in `post_activity_feedback` → recommend downgrading next hard workout (uses existing `recalibration.ts`).
+- Easy planned workout but matched activity RPE ≥ 8 → WARNING ("unexpectedly high RPE on easy run").
+- Two hard *actual* sessions within 48 h (from matched activities of hard workouts) → WARNING.
 
-## 8. MVP scope
+## Out of scope (call out, don't build)
 
-Auth → onboarding → seeded plan → dashboard → calendar → workout detail → complete/reschedule/replace → generator → progress. No social, payments, integrations.
+- Real FIT decoding — stubbed only.
+- Server-side re-parsing of uploaded files (parsing happens client-side; file stored for audit).
+- Background re-matching when new workouts are added.
 
----
+## Technical notes
 
-### Technical notes
-- Strong typing: shared `WorkoutType`/`WorkoutStatus` unions mirror DB enums; Zod validators on all server fn inputs.
-- All mutations invalidate the relevant TanStack Query keys; `onAuthStateChange` invalidates everything at root.
-- Drag-and-drop in calendar via `@dnd-kit/core` (lightweight, Worker-safe).
-- Pace math is pure and unit-tested via a small `__tests__` file if needed.
-- No paid APIs; predicted 10K time computed from current VMA via Mercier-style formula, shown with a "rough estimate" caveat.
+- Storage bucket policies: `bucket_id = 'activity-files' AND auth.uid()::text = (storage.foldername(name))[1]` for all of SELECT/INSERT/UPDATE/DELETE.
+- Haversine in `lib/activities/geo.ts`; pace formatter reused from existing `lib/training/paces.ts` where possible.
+- Zod schemas for every server fn input.
+- No new npm dependencies needed (DOMParser is built in; CSV parsed with a small custom splitter).
+
+Shall I proceed end-to-end, or trim/reorder (e.g., ship upload+parse+match first, planned-vs-actual + safety updates in a follow-up)?
