@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile } from "@/lib/api/training.functions";
-import { Home, Calendar, Sparkles, BarChart3, Settings as SettingsIcon } from "lucide-react";
+import { Home, Calendar, Upload, Activity, BarChart3, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -45,13 +45,14 @@ function BottomNav() {
   const items = [
     { to: "/dashboard", label: "Today", icon: Home },
     { to: "/calendar", label: "Calendar", icon: Calendar },
-    { to: "/generator", label: "Generate", icon: Sparkles },
+    { to: "/upload", label: "Upload", icon: Upload },
+    { to: "/activities", label: "Activity", icon: Activity },
     { to: "/progress", label: "Progress", icon: BarChart3 },
     { to: "/settings", label: "Settings", icon: SettingsIcon },
   ] as const;
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto max-w-md grid grid-cols-5 px-1 py-1.5 safe-area-bottom">
+      <div className="mx-auto max-w-md grid grid-cols-6 px-1 py-1.5 safe-area-bottom">
         {items.map(({ to, label, icon: Icon }) => {
           const active = path.startsWith(to);
           return (
