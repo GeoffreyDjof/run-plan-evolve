@@ -87,7 +87,7 @@ export const saveActivity = createServerFn({ method: "POST" })
         elevation_gain_meters: p.elevation_gain_meters ?? null,
         average_cadence: p.average_cadence ?? null,
         calories: p.calories ?? null,
-        raw_summary: p.raw_summary ?? null,
+        raw_summary: (p.raw_summary ?? null) as any,
       })
       .select()
       .single();
