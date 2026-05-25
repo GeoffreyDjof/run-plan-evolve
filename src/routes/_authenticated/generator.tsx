@@ -99,13 +99,21 @@ function Generator() {
   );
 }
 
+const GRID_COLS: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+};
+
 function Choice<T extends string>({ label, value, onChange, options }: {
   label: string; value: T; onChange: (v: T) => void; options: [T, string][];
 }) {
+  const cols = GRID_COLS[options.length] ?? "grid-cols-3";
   return (
     <div>
       <Label>{label}</Label>
-      <div className={`grid grid-cols-${options.length} gap-1.5 mt-1`}>
+      <div className={`grid ${cols} gap-1.5 mt-1`}>
         {options.map(([v, l]) => (
           <button key={v} type="button" onClick={() => onChange(v)}
             className={`rounded-md border py-2 text-xs ${value===v?"border-primary bg-primary/10 text-primary":"border-border text-muted-foreground"}`}>
@@ -116,3 +124,4 @@ function Choice<T extends string>({ label, value, onChange, options }: {
     </div>
   );
 }
+
