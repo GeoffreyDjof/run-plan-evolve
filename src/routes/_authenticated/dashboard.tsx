@@ -38,7 +38,12 @@ function Dashboard() {
     workout_type: w.workout_type as any,
     estimated_load: w.estimated_load, status: w.status,
   }));
-  const warns = [...checkBackToBackHard(lite), ...checkLoadJump(lite)].slice(0, 2);
+  const warns = [
+    ...checkBackToBackHard(lite),
+    ...checkLoadJump(lite),
+    ...(summary?.actualWarnings ?? []),
+  ].slice(0, 3);
+  const matchedSet = new Map((summary?.matchedWorkoutIds ?? []).map((m) => [m.id, m.status]));
 
   return (
     <div className="px-5 pt-8 pb-6 max-w-md mx-auto space-y-6">
@@ -62,6 +67,45 @@ function Dashboard() {
       )}
 
       {next && <NextWorkoutCard workout={next} vma={Number(profile.vma_kmh)} />}
+
+      <section>
+      {next && <NextWorkoutCard workout={next} vma={Number(profile.vma_kmh)} />}
+
+      {summary && (
+        <section className="grid grid-cols-3 gap-2">
+          <Stat icon={<Activity className="h-3.5 w-3.5" />} label="Week km" value={summary.weekDistanceKm.toFixed(1)} />
+          <Stat icon={<Clock className="h-3.5 w-3.5" />} label="Week min" value={String(summary.weekDurationMin)} />
+          <Stat icon={<TrendingUp className="h-3.5 w-3.5" />} label="RPE load" value={String(summary.weekRpeLoad)} />
+        </section>
+      )}
+
+      {summary?.latest && (
+        <Link to="/activities" className="block rounded-xl border border-border bg-card p-3 hover:border-primary/30">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Latest activity</span>
+            <span className="text-[10px] text-muted-foreground">{new Date(summary.latest.start_time).toLocaleDateString()}</span>
+          </div>
+          <div className="text-sm font-medium">
+            {summary.latest.activity_type} · {(Number(summary.latest.distance_meters) / 1000).toFixed(2)} km · {formatDuration(summary.latest.duration_seconds)}
+          </div>
+          <div className="text-xs text-muted-foreground tabular">{formatPace(summary.latest.average_pace_sec_per_km)}</div>
+        </Link>
+      )}
+
+      {summary && (summary.unmatchedCount > 0 || summary.needsReviewCount > 0) && (
+        <Link to="/activities" className="flex gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            {summary.needsReviewCount > 0 && `${summary.needsReviewCount} activit${summary.needsReviewCount > 1 ? "ies" : "y"} need review. `}
+            {summary.unmatchedCount > 0 && `${summary.unmatchedCount} unmatched.`}
+          </span>
+        </Link>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <Link to="/upload"><Button variant="outline" className="w-full"><Upload className="h-4 w-4 mr-2" />Upload activity</Button></Link>
+        <Link to="/planned-vs-actual"><Button variant="outline" className="w-full">Planned vs Actual</Button></Link>
+      </div>
 
       <section>
         <div className="flex items-center justify-between mb-3">
