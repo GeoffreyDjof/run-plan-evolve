@@ -52,7 +52,10 @@ function BottomNav() {
   ] as const;
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto max-w-md grid grid-cols-6 px-1 py-1.5 safe-area-bottom">
+      <div
+        className="mx-auto max-w-md px-1 py-1.5 safe-area-bottom grid"
+        style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}
+      >
         {items.map(({ to, label, icon: Icon }) => {
           const active = path.startsWith(to);
           return (
