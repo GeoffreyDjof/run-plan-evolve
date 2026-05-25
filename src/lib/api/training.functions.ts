@@ -53,9 +53,14 @@ export const completeOnboarding = createServerFn({ method: "POST" })
     // delete existing active plans + their workouts
     await supabase.from("training_plans").delete().eq("user_id", userId);
 
-    // compute start date so plan ends on race_date
+    // start the plan on the Monday of this week (or earlier if race is sooner)
     const race = new Date(data.race_date + "T00:00:00");
-    const startMonday = mondayOf(addDays(race, -7 * 11));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const raceAnchor = mondayOf(addDays(race, -7 * 11));
+    const todayMonday = mondayOf(today);
+    const startMonday = raceAnchor < todayMonday ? raceAnchor : todayMonday;
+
     const { data: plan, error: planErr } = await supabase
       .from("training_plans")
       .insert({
