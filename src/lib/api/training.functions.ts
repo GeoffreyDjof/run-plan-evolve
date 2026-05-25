@@ -557,7 +557,7 @@ export const applyRecalibration = createServerFn({ method: "POST" })
     actions: z.array(z.object({
       workoutId: z.string().uuid(),
       action: z.enum(["KEEP", "DOWNGRADE_TO_EASY", "REMOVE"]),
-      new_type: z.string().optional(),
+      new_type: z.enum(["EASY","HILLS","LONG_RUN","RACE","RECOVERY","TAPER","TEN_K_PACE","TEST","THRESHOLD","VMA_LONG","VMA_SHORT"]).optional(),
       new_title: z.string().optional(),
       new_main_set: z.string().optional(),
       new_duration: z.number().optional(),
