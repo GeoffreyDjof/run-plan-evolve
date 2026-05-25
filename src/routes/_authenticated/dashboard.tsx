@@ -2,10 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPlanWorkouts, getMyProfile } from "@/lib/api/training.functions";
+import { getActivitySummary } from "@/lib/api/activities.functions";
 import { WorkoutTypeBadge, StatusChip } from "@/components/badges";
 import { paceRangeFromVMA } from "@/lib/training/paces";
+import { formatDuration, formatPace } from "@/lib/activities";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock, TrendingUp, Calendar, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, TrendingUp, Calendar, AlertTriangle, Upload, Activity } from "lucide-react";
 import { checkBackToBackHard, checkLoadJump } from "@/lib/training/safety";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -16,8 +18,10 @@ function Dashboard() {
   const navigate = useNavigate();
   const fetchPlan = useServerFn(getPlanWorkouts);
   const fetchProfile = useServerFn(getMyProfile);
+  const fetchSummary = useServerFn(getActivitySummary);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const { data, isLoading } = useQuery({ queryKey: ["plan"], queryFn: () => fetchPlan() });
+  const { data: summary } = useQuery({ queryKey: ["activity-summary"], queryFn: () => fetchSummary() });
 
   if (isLoading || !profile) return <div className="p-6 text-muted-foreground">Loading…</div>;
   if (!data?.plan) return <div className="p-6 text-muted-foreground">No plan yet.</div>;
