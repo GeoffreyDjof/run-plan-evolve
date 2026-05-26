@@ -126,6 +126,7 @@ export type Database = {
           raw_summary: Json | null
           source_type: Database["public"]["Enums"]["activity_source_type"]
           start_time: string
+          strava_activity_id: number | null
           timezone: string | null
           updated_at: string
           user_id: string
@@ -149,6 +150,7 @@ export type Database = {
           raw_summary?: Json | null
           source_type?: Database["public"]["Enums"]["activity_source_type"]
           start_time: string
+          strava_activity_id?: number | null
           timezone?: string | null
           updated_at?: string
           user_id: string
@@ -172,6 +174,7 @@ export type Database = {
           raw_summary?: Json | null
           source_type?: Database["public"]["Enums"]["activity_source_type"]
           start_time?: string
+          strava_activity_id?: number | null
           timezone?: string | null
           updated_at?: string
           user_id?: string
@@ -231,6 +234,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      strava_connections: {
+        Row: {
+          access_token: string
+          athlete_id: number
+          created_at: string
+          expires_at: string
+          id: string
+          last_sync_at: string | null
+          refresh_token: string
+          scope: string | null
+          subscription_id: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          athlete_id: number
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token: string
+          scope?: string | null
+          subscription_id?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          athlete_id?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token?: string
+          scope?: string | null
+          subscription_id?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       training_plans: {
         Row: {
