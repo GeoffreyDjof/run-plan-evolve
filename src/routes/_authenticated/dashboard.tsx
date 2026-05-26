@@ -181,6 +181,23 @@ function NextWorkoutCard({ workout, vma }: { workout: any; vma: number }) {
   );
 }
 
+function RestDayCard({ nextWorkout }: { nextWorkout?: any }) {
+  return (
+    <div className="rounded-2xl bg-card border border-border p-6 text-center space-y-2">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">Aujourd'hui</div>
+      <h2 className="text-3xl font-bold">Repos</h2>
+      <p className="text-sm text-muted-foreground">
+        Aucune séance programmée aujourd'hui. Profites-en pour récupérer.
+      </p>
+      {nextWorkout && (
+        <p className="text-xs text-muted-foreground pt-2">
+          Prochaine séance : {new Date(nextWorkout.scheduled_date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })} · {nextWorkout.title}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-lg bg-muted/50 p-2">
