@@ -4,11 +4,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getMyProfile, updateProfile, resetPlan } from "@/lib/api/training.functions";
+import {
+  getStravaStatus,
+  getStravaPublicConfig,
+  connectStravaWithCode,
+  disconnectStrava,
+  subscribeStravaWebhook,
+  unsubscribeStravaWebhook,
+} from "@/lib/api/strava.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, RotateCcw } from "lucide-react";
+import { LogOut, RotateCcw, Link2, Unlink, Radio } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: Settings,
