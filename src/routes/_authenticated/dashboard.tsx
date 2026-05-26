@@ -67,7 +67,11 @@ function Dashboard() {
         </div>
       )}
 
-      {next && <NextWorkoutCard workout={next} vma={Number(profile.vma_kmh)} />}
+      {todayWorkout ? (
+        <NextWorkoutCard workout={todayWorkout} vma={Number(profile.vma_kmh)} />
+      ) : (
+        <RestDayCard nextWorkout={next} />
+      )}
 
 
 
