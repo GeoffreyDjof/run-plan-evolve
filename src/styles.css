@@ -43,9 +43,40 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Dark by default */
+/* Light by default */
 :root {
   --radius: 0.875rem;
+  --background: oklch(0.99 0.002 250);
+  --foreground: oklch(0.18 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 250);
+  --primary: oklch(0.55 0.18 145);
+  --primary-foreground: oklch(0.99 0.002 145);
+  --secondary: oklch(0.96 0.005 250);
+  --secondary-foreground: oklch(0.18 0.02 250);
+  --muted: oklch(0.96 0.005 250);
+  --muted-foreground: oklch(0.5 0.018 250);
+  --accent: oklch(0.92 0.04 145);
+  --accent-foreground: oklch(0.18 0.04 145);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.99 0.005 25);
+  --warning: oklch(0.78 0.16 75);
+  --warning-foreground: oklch(0.18 0.04 75);
+  --success: oklch(0.6 0.18 145);
+  --success-foreground: oklch(0.99 0.005 145);
+  --border: oklch(0.9 0.008 250);
+  --input: oklch(0.9 0.008 250);
+  --ring: oklch(0.55 0.18 145);
+  --chart-1: oklch(0.55 0.18 145);
+  --chart-2: oklch(0.55 0.16 220);
+  --chart-3: oklch(0.7 0.14 75);
+  --chart-4: oklch(0.65 0.2 25);
+  --chart-5: oklch(0.55 0.15 300);
+}
+
+.dark {
   --background: oklch(0.16 0.012 250);
   --foreground: oklch(0.97 0.005 250);
   --card: oklch(0.205 0.014 250);
@@ -74,25 +105,6 @@
   --chart-3: oklch(0.78 0.16 75);
   --chart-4: oklch(0.65 0.22 25);
   --chart-5: oklch(0.7 0.15 300);
-}
-
-.light {
-  --background: oklch(0.99 0.002 250);
-  --foreground: oklch(0.18 0.02 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 250);
-  --primary: oklch(0.55 0.18 145);
-  --primary-foreground: oklch(0.99 0.002 145);
-  --secondary: oklch(0.96 0.005 250);
-  --secondary-foreground: oklch(0.18 0.02 250);
-  --muted: oklch(0.96 0.005 250);
-  --muted-foreground: oklch(0.5 0.018 250);
-  --accent: oklch(0.92 0.04 145);
-  --accent-foreground: oklch(0.18 0.04 145);
-  --border: oklch(0.9 0.008 250);
-  --input: oklch(0.9 0.008 250);
 }
 
 @layer base {
