@@ -624,7 +624,7 @@ export type Database = {
     Enums: {
       activity_file_type: "FIT" | "GPX" | "TCX" | "CSV" | "UNKNOWN"
       activity_kind: "RUN" | "RIDE" | "WALK" | "STRENGTH" | "OTHER"
-      activity_source_type: "FILE_UPLOAD" | "MANUAL_ENTRY"
+      activity_source_type: "FILE_UPLOAD" | "MANUAL_ENTRY" | "STRAVA"
       completion_status: "FULL" | "PARTIAL" | "NONE"
       fatigue_level: "LOW" | "NORMAL" | "HIGH"
       file_parsing_status: "PENDING" | "PARSED" | "FAILED" | "UNSUPPORTED"
@@ -785,7 +785,7 @@ export const Constants = {
     Enums: {
       activity_file_type: ["FIT", "GPX", "TCX", "CSV", "UNKNOWN"],
       activity_kind: ["RUN", "RIDE", "WALK", "STRENGTH", "OTHER"],
-      activity_source_type: ["FILE_UPLOAD", "MANUAL_ENTRY"],
+      activity_source_type: ["FILE_UPLOAD", "MANUAL_ENTRY", "STRAVA"],
       completion_status: ["FULL", "PARTIAL", "NONE"],
       fatigue_level: ["LOW", "NORMAL", "HIGH"],
       file_parsing_status: ["PENDING", "PARSED", "FAILED", "UNSUPPORTED"],
