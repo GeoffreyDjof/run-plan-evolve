@@ -27,8 +27,9 @@ function Dashboard() {
   if (!data?.plan) return <div className="p-6 text-muted-foreground">No plan yet.</div>;
 
   const today = new Date().toISOString().slice(0, 10);
+  const todayWorkout = data.workouts.find(w => w.scheduled_date === today);
   const upcoming = data.workouts.filter(w => w.status === "PLANNED" || w.status === "RESCHEDULED");
-  const next = upcoming.find(w => w.scheduled_date >= today) ?? upcoming[0];
+  const next = todayWorkout ?? upcoming.find(w => w.scheduled_date >= today) ?? upcoming[0];
   const completed = data.workouts.filter(w => w.status === "COMPLETED").length;
   const weekNum = next?.week_number ?? data.plan.current_week;
   const weekWorkouts = data.workouts.filter(w => w.week_number === weekNum);
@@ -66,7 +67,11 @@ function Dashboard() {
         </div>
       )}
 
-      {next && <NextWorkoutCard workout={next} vma={Number(profile.vma_kmh)} />}
+      {todayWorkout ? (
+        <NextWorkoutCard workout={todayWorkout} vma={Number(profile.vma_kmh)} />
+      ) : (
+        <RestDayCard nextWorkout={next} />
+      )}
 
 
 
@@ -172,6 +177,23 @@ function NextWorkoutCard({ workout, vma }: { workout: any; vma: number }) {
           <CheckCircle2 className="h-4 w-4 mr-2" /> Open workout
         </Button>
       </Link>
+    </div>
+  );
+}
+
+function RestDayCard({ nextWorkout }: { nextWorkout?: any }) {
+  return (
+    <div className="rounded-2xl bg-card border border-border p-6 text-center space-y-2">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">Aujourd'hui</div>
+      <h2 className="text-3xl font-bold">Repos</h2>
+      <p className="text-sm text-muted-foreground">
+        Aucune séance programmée aujourd'hui. Profites-en pour récupérer.
+      </p>
+      {nextWorkout && (
+        <p className="text-xs text-muted-foreground pt-2">
+          Prochaine séance : {new Date(nextWorkout.scheduled_date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })} · {nextWorkout.title}
+        </p>
+      )}
     </div>
   );
 }
