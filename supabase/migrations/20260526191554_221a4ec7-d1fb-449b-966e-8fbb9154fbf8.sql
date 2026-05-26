@@ -1,0 +1,1 @@
+ALTER TYPE activity_source_type ADD VALUE IF NOT EXISTS 'STRAVA';

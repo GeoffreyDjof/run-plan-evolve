@@ -126,6 +126,7 @@ export type Database = {
           raw_summary: Json | null
           source_type: Database["public"]["Enums"]["activity_source_type"]
           start_time: string
+          strava_activity_id: number | null
           timezone: string | null
           updated_at: string
           user_id: string
@@ -149,6 +150,7 @@ export type Database = {
           raw_summary?: Json | null
           source_type?: Database["public"]["Enums"]["activity_source_type"]
           start_time: string
+          strava_activity_id?: number | null
           timezone?: string | null
           updated_at?: string
           user_id: string
@@ -172,6 +174,7 @@ export type Database = {
           raw_summary?: Json | null
           source_type?: Database["public"]["Enums"]["activity_source_type"]
           start_time?: string
+          strava_activity_id?: number | null
           timezone?: string | null
           updated_at?: string
           user_id?: string
@@ -231,6 +234,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      strava_connections: {
+        Row: {
+          access_token: string
+          athlete_id: number
+          created_at: string
+          expires_at: string
+          id: string
+          last_sync_at: string | null
+          refresh_token: string
+          scope: string | null
+          subscription_id: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          athlete_id: number
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token: string
+          scope?: string | null
+          subscription_id?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          athlete_id?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token?: string
+          scope?: string | null
+          subscription_id?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       training_plans: {
         Row: {
@@ -579,7 +624,7 @@ export type Database = {
     Enums: {
       activity_file_type: "FIT" | "GPX" | "TCX" | "CSV" | "UNKNOWN"
       activity_kind: "RUN" | "RIDE" | "WALK" | "STRENGTH" | "OTHER"
-      activity_source_type: "FILE_UPLOAD" | "MANUAL_ENTRY"
+      activity_source_type: "FILE_UPLOAD" | "MANUAL_ENTRY" | "STRAVA"
       completion_status: "FULL" | "PARTIAL" | "NONE"
       fatigue_level: "LOW" | "NORMAL" | "HIGH"
       file_parsing_status: "PENDING" | "PARSED" | "FAILED" | "UNSUPPORTED"
@@ -740,7 +785,7 @@ export const Constants = {
     Enums: {
       activity_file_type: ["FIT", "GPX", "TCX", "CSV", "UNKNOWN"],
       activity_kind: ["RUN", "RIDE", "WALK", "STRENGTH", "OTHER"],
-      activity_source_type: ["FILE_UPLOAD", "MANUAL_ENTRY"],
+      activity_source_type: ["FILE_UPLOAD", "MANUAL_ENTRY", "STRAVA"],
       completion_status: ["FULL", "PARTIAL", "NONE"],
       fatigue_level: ["LOW", "NORMAL", "HIGH"],
       file_parsing_status: ["PENDING", "PARSED", "FAILED", "UNSUPPORTED"],

@@ -22,6 +22,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedActivitiesRouteImport } from './routes/_authenticated/activities'
 import { Route as AuthenticatedWorkoutIdRouteImport } from './routes/_authenticated/workout.$id'
+import { Route as ApiPublicStravaWebhookRouteImport } from './routes/api/public/strava/webhook'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -88,6 +89,11 @@ const AuthenticatedWorkoutIdRoute = AuthenticatedWorkoutIdRouteImport.update({
   path: '/workout/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiPublicStravaWebhookRoute = ApiPublicStravaWebhookRouteImport.update({
+  id: '/api/public/strava/webhook',
+  path: '/api/public/strava/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/upload': typeof AuthenticatedUploadRoute
   '/workout/$id': typeof AuthenticatedWorkoutIdRoute
+  '/api/public/strava/webhook': typeof ApiPublicStravaWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/upload': typeof AuthenticatedUploadRoute
   '/workout/$id': typeof AuthenticatedWorkoutIdRoute
+  '/api/public/strava/webhook': typeof ApiPublicStravaWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/upload': typeof AuthenticatedUploadRoute
   '/_authenticated/workout/$id': typeof AuthenticatedWorkoutIdRoute
+  '/api/public/strava/webhook': typeof ApiPublicStravaWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/upload'
     | '/workout/$id'
+    | '/api/public/strava/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/upload'
     | '/workout/$id'
+    | '/api/public/strava/webhook'
   id:
     | '__root__'
     | '/'
@@ -177,12 +188,14 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/upload'
     | '/_authenticated/workout/$id'
+    | '/api/public/strava/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiPublicStravaWebhookRoute: typeof ApiPublicStravaWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkoutIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/strava/webhook': {
+      id: '/api/public/strava/webhook'
+      path: '/api/public/strava/webhook'
+      fullPath: '/api/public/strava/webhook'
+      preLoaderRoute: typeof ApiPublicStravaWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -315,17 +335,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiPublicStravaWebhookRoute: ApiPublicStravaWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
