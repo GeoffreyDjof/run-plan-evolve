@@ -28,11 +28,11 @@ function ActivitiesPage() {
     <div className="px-5 pt-8 pb-6 max-w-md mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Activities</h1>
-          <p className="text-sm text-muted-foreground mt-1">Uploaded runs and other activities.</p>
+          <h1 className="text-3xl font-bold">Historique</h1>
+          <p className="text-sm text-muted-foreground mt-1">Sorties réalisées (saisie manuelle ou fichier).</p>
         </div>
-        <Link to="/upload">
-          <Button size="sm"><Upload className="h-4 w-4 mr-2" />Upload</Button>
+        <Link to="/log-run">
+          <Button size="sm"><Upload className="h-4 w-4 mr-2" />Ajouter</Button>
         </Link>
       </header>
 
