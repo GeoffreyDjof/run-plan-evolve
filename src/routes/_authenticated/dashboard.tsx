@@ -34,6 +34,21 @@ function Dashboard() {
   const weekNum = next?.week_number ?? data.plan.current_week;
   const weekWorkouts = data.workouts.filter(w => w.week_number === weekNum);
 
+  // Weekly stats
+  const weekDone = weekWorkouts.filter(w => w.status === "COMPLETED").length;
+  const weekPlanned = weekWorkouts.length;
+  const weekMissed = weekWorkouts.filter(w => w.status === "MISSED").length;
+  const pastDueUndone = weekWorkouts.filter(
+    w => w.scheduled_date < today && w.status !== "COMPLETED" && w.status !== "PARTIAL" && w.status !== "REPLACED",
+  ).length;
+
+  // Status indicator
+  const fatigueFlag = (summary?.actualWarnings ?? []).some((w) => /fatigue|pain|douleur/i.test(w.message));
+  let weekStatus: { label: string; tone: "ok" | "warn" | "bad" } = { label: "Sur les rails", tone: "ok" };
+  if (pastDueUndone >= 2 || weekMissed >= 2) weekStatus = { label: "Retard important", tone: "bad" };
+  else if (pastDueUndone === 1 || weekMissed === 1) weekStatus = { label: "Retard léger", tone: "warn" };
+  if (fatigueFlag) weekStatus = { label: "Attention fatigue", tone: "warn" };
+
   const lite = data.workouts.map(w => ({
     id: w.id, scheduled_date: w.scheduled_date,
     workout_type: w.workout_type as any,
