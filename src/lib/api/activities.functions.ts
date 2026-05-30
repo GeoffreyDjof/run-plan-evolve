@@ -183,6 +183,13 @@ export const saveActivity = createServerFn({ method: "POST" })
             confidence: best.score.confidence,
             reason: best.score.reason,
           };
+          // Auto-write comparison for the planned/actual pair
+          await upsertWorkoutComparison(
+            supabase,
+            userId,
+            best.workout.id,
+            actualFromImportedActivity(activity),
+          );
           // If auto-matched, mark workout completed
           if (status === "AUTO_MATCHED") {
             await supabase
