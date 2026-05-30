@@ -92,28 +92,36 @@ function CalendarPage() {
   const weeks = useMemo(() => {
     if (!data?.plan) return [];
     const ws = data.workouts as Workout[];
-    const byWeek = new Map<number, Workout[]>();
-    for (const w of ws) {
-      if (!byWeek.has(w.week_number)) byWeek.set(w.week_number, []);
-      byWeek.get(w.week_number)!.push(w);
-    }
     const planStart = mondayOf(data.plan.start_date);
-    return Array.from(byWeek.keys())
-      .sort((a, b) => a - b)
-      .map((wn) => {
-        const monday = addDays(planStart, (wn - 1) * 7);
-        const days = Array.from({ length: 7 }, (_, i) => {
-          const date = addDays(monday, i);
-          const iso = toISO(date);
-          return {
-            iso,
-            label: DAY_LABELS[i],
-            dayNum: date.getDate(),
-            workouts: (byWeek.get(wn) ?? []).filter((w) => w.scheduled_date === iso),
-          };
-        });
-        return { weekNum: wn, days };
+    // Bucket by week derived from scheduled_date, not the stored week_number.
+    // This keeps the calendar correct after a reschedule across week boundaries.
+    const byWeek = new Map<number, Workout[]>();
+    let maxWeek = 0;
+    for (const w of ws) {
+      const wDate = new Date(w.scheduled_date + "T00:00:00");
+      const diffDays = Math.floor((mondayOf(w.scheduled_date).getTime() - planStart.getTime()) / 86400000);
+      const wn = Math.floor(diffDays / 7) + 1;
+      if (wn < 1) continue;
+      if (!byWeek.has(wn)) byWeek.set(wn, []);
+      byWeek.get(wn)!.push(w);
+      if (wn > maxWeek) maxWeek = wn;
+      void wDate;
+    }
+    // Always render every week from 1..maxWeek so empty weeks still show.
+    return Array.from({ length: maxWeek }, (_, i) => i + 1).map((wn) => {
+      const monday = addDays(planStart, (wn - 1) * 7);
+      const days = Array.from({ length: 7 }, (_, i) => {
+        const date = addDays(monday, i);
+        const iso = toISO(date);
+        return {
+          iso,
+          label: DAY_LABELS[i],
+          dayNum: date.getDate(),
+          workouts: (byWeek.get(wn) ?? []).filter((w) => w.scheduled_date === iso),
+        };
       });
+      return { weekNum: wn, days };
+    });
   }, [data]);
 
   if (isLoading) return <div className="p-6 text-muted-foreground">Loading…</div>;
