@@ -65,11 +65,26 @@ function Dashboard() {
     <div className="px-5 pt-8 pb-6 max-w-md mx-auto space-y-6">
       <header>
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Hello {profile.name?.split(" ")[0]}</p>
-        <h1 className="text-3xl font-bold mt-1">Week {weekNum} of 12</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {completed} completed · {data.workouts.length - completed} to go
-        </p>
+        <h1 className="text-3xl font-bold mt-1">Semaine {weekNum} / 12</h1>
+        <div className="flex items-center gap-2 mt-2">
+          <span
+            className={
+              "text-xs uppercase tracking-wider px-2 py-1 rounded-full font-semibold " +
+              (weekStatus.tone === "ok"
+                ? "bg-success/15 text-success"
+                : weekStatus.tone === "warn"
+                ? "bg-warning/15 text-warning"
+                : "bg-destructive/15 text-destructive")
+            }
+          >
+            {weekStatus.label}
+          </span>
+          <span className="text-sm text-muted-foreground tabular">
+            {weekDone}/{weekPlanned} séances faites
+          </span>
+        </div>
       </header>
+
 
       {warns.length > 0 && (
         <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 space-y-1">
