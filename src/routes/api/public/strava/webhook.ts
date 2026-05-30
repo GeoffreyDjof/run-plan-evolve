@@ -1,17 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isStravaSyncEnabled } from "@/lib/integrations/strava/flag.server";
 import {
   getStravaCreds,
   getValidAccessTokenForConnection,
   fetchStravaActivity,
   ingestStravaActivity,
-} from "@/lib/strava/strava.server";
+} from "@/lib/integrations/strava/strava.server";
 
 export const Route = createFileRoute("/api/public/strava/webhook")({
   server: {
     handlers: {
       // Webhook validation handshake
       GET: async ({ request }) => {
+        if (!isStravaSyncEnabled()) return new Response("Disabled", { status: 404 });
         const url = new URL(request.url);
         const mode = url.searchParams.get("hub.mode");
         const token = url.searchParams.get("hub.verify_token");
@@ -25,6 +27,7 @@ export const Route = createFileRoute("/api/public/strava/webhook")({
 
       // Activity events
       POST: async ({ request }) => {
+        if (!isStravaSyncEnabled()) return new Response("Disabled", { status: 404 });
         let evt: {
           object_type?: string;
           object_id?: number;
@@ -38,7 +41,6 @@ export const Route = createFileRoute("/api/public/strava/webhook")({
         }
 
         // Always ACK fast — Strava retries on non-2xx.
-        // We process inline (fast enough for a single user) but swallow errors.
         try {
           if (
             evt.object_type === "activity" &&
@@ -62,7 +64,9 @@ export const Route = createFileRoute("/api/public/strava/webhook")({
             }
           }
         } catch (err) {
-          console.error("[strava webhook] error:", err);
+          // Never log tokens or full error payloads; only the error name/message.
+          const msg = err instanceof Error ? err.name : "unknown";
+          console.error("[strava webhook] processing failed:", msg);
         }
         return new Response("ok", { status: 200 });
       },
