@@ -45,6 +45,7 @@ function WorkoutDetail() {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["workout", id] });
+    qc.invalidateQueries({ queryKey: ["workout-comparison", id] });
     qc.invalidateQueries({ queryKey: ["plan"] });
   };
 
