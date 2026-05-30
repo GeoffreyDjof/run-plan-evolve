@@ -30,7 +30,7 @@ function Dashboard() {
   const todayWorkout = data.workouts.find(w => w.scheduled_date === today);
   const upcoming = data.workouts.filter(w => w.status === "PLANNED" || w.status === "RESCHEDULED");
   const next = todayWorkout ?? upcoming.find(w => w.scheduled_date >= today) ?? upcoming[0];
-  const completed = data.workouts.filter(w => w.status === "COMPLETED").length;
+  void data.workouts.filter(w => w.status === "COMPLETED").length;
   const weekNum = next?.week_number ?? data.plan.current_week;
   const weekWorkouts = data.workouts.filter(w => w.week_number === weekNum);
 
