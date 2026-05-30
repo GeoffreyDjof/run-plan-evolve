@@ -103,6 +103,46 @@ function WorkoutDetail() {
   );
 }
 
+function ComparisonBlock({ c }: { c: { status: ComparisonStatus; distance_delta_km: number | null; duration_delta_sec: number | null; pace_delta_sec_per_km: number | null } }) {
+  const tone: Record<ComparisonStatus, string> = {
+    on_track: "border-success/30 bg-success/5 text-success",
+    too_fast: "border-warning/30 bg-warning/5 text-warning",
+    too_slow: "border-warning/30 bg-warning/5 text-warning",
+    incomplete: "border-destructive/30 bg-destructive/5 text-destructive",
+    overdone: "border-warning/30 bg-warning/5 text-warning",
+  };
+  const fmtDur = (s: number | null) =>
+    s == null ? "—" : `${s > 0 ? "+" : ""}${Math.round(s / 60)} min`;
+  const fmtPace = (s: number | null) => {
+    if (s == null) return "—";
+    const sign = s > 0 ? "+" : "-";
+    const v = paceSecToString(Math.abs(s));
+    return v ? `${sign}${v}/km` : "—";
+  };
+  return (
+    <div className={`rounded-xl border p-4 ${tone[c.status]}`}>
+      <div className="text-xs uppercase tracking-wider mb-2 opacity-80">Prévu vs réalisé</div>
+      <div className="text-sm font-semibold mb-2">{COMPARISON_STATUS_LABEL[c.status]}</div>
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div>
+          <div className="opacity-70">Distance</div>
+          <div className="tabular font-medium">
+            {c.distance_delta_km == null ? "—" : `${c.distance_delta_km > 0 ? "+" : ""}${c.distance_delta_km.toFixed(2)} km`}
+          </div>
+        </div>
+        <div>
+          <div className="opacity-70">Durée</div>
+          <div className="tabular font-medium">{fmtDur(c.duration_delta_sec)}</div>
+        </div>
+        <div>
+          <div className="opacity-70">Allure</div>
+          <div className="tabular font-medium">{fmtPace(c.pace_delta_sec_per_km)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Box({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-muted/40 p-3">
