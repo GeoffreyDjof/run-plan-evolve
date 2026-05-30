@@ -455,12 +455,34 @@ export const getWorkoutComparison = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: rows } = await supabase
       .from("workout_comparisons")
-      .select("*")
+      .select("id, status, distance_delta_km, duration_delta_sec, pace_delta_sec_per_km, comment, completed_workout_id, completed_source_type, updated_at")
       .eq("user_id", userId)
       .eq("planned_workout_id", data.workout_id)
       .order("updated_at", { ascending: false })
       .limit(1);
     return { comparison: rows?.[0] ?? null };
+  });
+
+export const listWorkoutComparisons = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: comparisons } = await supabase
+      .from("workout_comparisons")
+      .select("id, status, distance_delta_km, duration_delta_sec, pace_delta_sec_per_km, comment, planned_workout_id, completed_workout_id, completed_source_type, updated_at")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+    const ids = (comparisons ?? []).map((c: any) => c.planned_workout_id);
+    if (ids.length === 0) return { rows: [] as any[] };
+    const { data: workouts } = await supabase
+      .from("workouts")
+      .select("id, title, workout_type, scheduled_date, estimated_duration_minutes, target_pace_min, target_pace_max, target_distance_km")
+      .in("id", ids);
+    const wMap = new Map((workouts ?? []).map((w: any) => [w.id, w]));
+    const rows = (comparisons ?? [])
+      .map((c: any) => ({ comparison: c, workout: wMap.get(c.planned_workout_id) ?? null }))
+      .filter((r) => r.workout);
+    return { rows };
   });
 
 export const getProgressData = createServerFn({ method: "GET" })

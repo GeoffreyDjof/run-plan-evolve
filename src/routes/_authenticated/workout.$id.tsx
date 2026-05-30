@@ -103,7 +103,7 @@ function WorkoutDetail() {
   );
 }
 
-function ComparisonBlock({ c }: { c: { status: ComparisonStatus; distance_delta_km: number | null; duration_delta_sec: number | null; pace_delta_sec_per_km: number | null } }) {
+function ComparisonBlock({ c }: { c: { status: ComparisonStatus; distance_delta_km: number | null; duration_delta_sec: number | null; pace_delta_sec_per_km: number | null; comment?: string | null } }) {
   const tone: Record<ComparisonStatus, string> = {
     on_track: "border-success/30 bg-success/5 text-success",
     too_fast: "border-warning/30 bg-warning/5 text-warning",
@@ -139,6 +139,9 @@ function ComparisonBlock({ c }: { c: { status: ComparisonStatus; distance_delta_
           <div className="tabular font-medium">{fmtPace(c.pace_delta_sec_per_km)}</div>
         </div>
       </div>
+      {c.comment && (
+        <div className="text-xs mt-3 pt-3 border-t border-current/15 opacity-90">{c.comment}</div>
+      )}
     </div>
   );
 }

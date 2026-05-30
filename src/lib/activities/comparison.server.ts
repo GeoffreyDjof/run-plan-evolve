@@ -3,6 +3,8 @@ import type { WorkoutType } from "@/lib/training/types";
 
 type SupabaseLike = any;
 
+export type CompletedSourceType = "IMPORTED_ACTIVITY" | "WORKOUT_LOG";
+
 interface PlannedSource {
   id: string;
   workout_type: string;
@@ -13,20 +15,20 @@ interface PlannedSource {
 }
 
 interface ActualSource {
-  id: string; // imported_activity_id OR workout_log id
+  id: string; // imported_activity id OR workout_log id
+  source_type: CompletedSourceType;
   distance_km: number | null;
   duration_sec: number | null;
   pace_sec_per_km: number | null;
 }
 
-/** Upsert a workout_comparison row for a planned/actual pair. Idempotent on (planned, completed). */
+/** Upsert a workout_comparison row for a planned/actual pair. Idempotent on (user, planned, completed). */
 export async function upsertWorkoutComparison(
   supabase: SupabaseLike,
   userId: string,
   workoutId: string,
   actual: ActualSource,
 ): Promise<void> {
-  // Load planned side
   const { data: w } = await supabase
     .from("workouts")
     .select("id, workout_type, target_distance_km, estimated_duration_minutes, target_pace_min, target_pace_max")
@@ -48,30 +50,23 @@ export async function upsertWorkoutComparison(
   };
   const result = compareWorkout(input);
 
-  // Find existing row for the pair
-  const { data: existing } = await supabase
-    .from("workout_comparisons")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("planned_workout_id", workoutId)
-    .eq("completed_workout_id", actual.id)
-    .maybeSingle();
-
   const payload = {
     user_id: userId,
     planned_workout_id: workoutId,
     completed_workout_id: actual.id,
+    completed_source_type: actual.source_type,
     distance_delta_km: result.distance_delta_km,
     duration_delta_sec: result.duration_delta_sec,
     pace_delta_sec_per_km: result.pace_delta_sec_per_km,
     status: result.status,
+    comment: result.comment,
+    updated_at: new Date().toISOString(),
   };
 
-  if (existing) {
-    await supabase.from("workout_comparisons").update(payload).eq("id", existing.id);
-  } else {
-    await supabase.from("workout_comparisons").insert(payload);
-  }
+  const { error } = await supabase
+    .from("workout_comparisons")
+    .upsert(payload, { onConflict: "user_id,planned_workout_id,completed_workout_id" });
+  if (error) throw new Error(error.message);
 }
 
 /** Build ActualSource from an imported_activities row. */
@@ -83,6 +78,7 @@ export function actualFromImportedActivity(a: {
 }): ActualSource {
   return {
     id: a.id,
+    source_type: "IMPORTED_ACTIVITY",
     distance_km: a.distance_meters != null ? Number(a.distance_meters) / 1000 : null,
     duration_sec: a.duration_seconds ?? null,
     pace_sec_per_km: a.average_pace_sec_per_km ?? null,
@@ -98,6 +94,7 @@ export function actualFromWorkoutLog(l: {
 }): ActualSource {
   return {
     id: l.id,
+    source_type: "WORKOUT_LOG",
     distance_km: l.actual_distance_km != null ? Number(l.actual_distance_km) : null,
     duration_sec: l.actual_duration_minutes != null ? l.actual_duration_minutes * 60 : null,
     pace_sec_per_km: paceStringToSec(l.average_pace),
