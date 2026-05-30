@@ -267,9 +267,21 @@ export const rescheduleWorkout = createServerFn({ method: "POST" })
     const notesUpdate = data.override && hasBlocking(warnings)
       ? { override_reason: data.override_reason ?? "User overrode safety warning." }
       : null;
+
+    // Recompute week_number from the new date so the calendar bucketing stays in sync.
+    let newWeekNumber = orig.week_number;
+    if (ctx.plan?.start_date) {
+      const planStart = mondayOf(ctx.plan.start_date);
+      const targetMonday = mondayOf(data.date);
+      const diffDays = Math.floor((targetMonday.getTime() - planStart.getTime()) / 86400000);
+      const computed = Math.floor(diffDays / 7) + 1;
+      if (computed >= 1) newWeekNumber = computed;
+    }
+
     const { error } = await supabase.from("workouts")
       .update({
         scheduled_date: data.date,
+        week_number: newWeekNumber,
         status: "RESCHEDULED",
         ...(notesUpdate ? { notes: `[OVERRIDE] ${notesUpdate.override_reason}` } : {}),
       })
