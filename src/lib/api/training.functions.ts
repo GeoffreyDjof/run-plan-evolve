@@ -423,7 +423,7 @@ export const logWorkoutCompletion = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const load = Math.round((data.actual_duration_minutes ?? 0) * data.rpe);
     await supabase.from("workout_logs").delete().eq("workout_id", data.workout_id);
-    const { error } = await supabase.from("workout_logs").insert({
+    const { data: logRow, error } = await supabase.from("workout_logs").insert({
       workout_id: data.workout_id, user_id: userId,
       completed_status: data.completed_status,
       actual_duration_minutes: data.actual_duration_minutes ?? null,
@@ -432,12 +432,31 @@ export const logWorkoutCompletion = createServerFn({ method: "POST" })
       rpe: data.rpe, pain_level: data.pain_level,
       fatigue_level: data.fatigue_level, sleep_quality: data.sleep_quality,
       comment: data.comment ?? null, calculated_load: load,
-    });
+    }).select("*").single();
     if (error) throw new Error(error.message);
     const newStatus = data.completed_status === "FULL" ? "COMPLETED"
       : data.completed_status === "PARTIAL" ? "PARTIAL" : "MISSED";
     await supabase.from("workouts").update({ status: newStatus }).eq("id", data.workout_id);
+    // Auto-write planned vs actual comparison when we have something to compare
+    if (data.completed_status !== "NONE" && logRow) {
+      await upsertWorkoutComparison(supabase, userId, data.workout_id, actualFromWorkoutLog(logRow));
+    }
     return { ok: true };
+  });
+
+export const getWorkoutComparison = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workout_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: rows } = await supabase
+      .from("workout_comparisons")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("planned_workout_id", data.workout_id)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    return { comparison: rows?.[0] ?? null };
   });
 
 export const getProgressData = createServerFn({ method: "GET" })
