@@ -138,9 +138,11 @@ function Dashboard() {
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Link to="/upload"><Button variant="outline" className="w-full"><Upload className="h-4 w-4 mr-2" />Upload activity</Button></Link>
-        <Link to="/planned-vs-actual"><Button variant="outline" className="w-full">Planned vs Actual</Button></Link>
+        <Link to="/log-run"><Button className="w-full"><PlusCircle className="h-4 w-4 mr-2" />Ajouter sortie</Button></Link>
+        <Link to="/upload"><Button variant="outline" className="w-full"><Upload className="h-4 w-4 mr-2" />Importer fichier</Button></Link>
       </div>
+      <Link to="/planned-vs-actual" className="block text-center text-xs text-primary underline">Voir Prévu vs Réalisé →</Link>
+
 
       <section>
         <div className="flex items-center justify-between mb-3">
