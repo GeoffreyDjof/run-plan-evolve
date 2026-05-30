@@ -9,6 +9,10 @@ import {
   type MatchableActivity,
 } from "@/lib/activities/matching";
 import { complianceScore } from "@/lib/activities/compliance";
+import {
+  upsertWorkoutComparison,
+  actualFromImportedActivity,
+} from "@/lib/activities/comparison.server";
 import type { WorkoutType } from "@/lib/training/types";
 
 // ----- Schemas -----
