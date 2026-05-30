@@ -16,13 +16,13 @@ const TYPE_COLORS: Record<WorkoutType, string> = {
   RACE: "bg-primary text-primary-foreground border-primary",
 };
 
-const STATUS_COLORS: Record<WorkoutStatus, string> = {
-  PLANNED: "bg-muted text-muted-foreground",
-  COMPLETED: "bg-success/20 text-success",
-  PARTIAL: "bg-warning/20 text-warning",
-  MISSED: "bg-destructive/20 text-destructive",
-  RESCHEDULED: "bg-chart-2/20 text-chart-2",
-  REPLACED: "bg-muted text-muted-foreground line-through",
+const STATUS_META: Record<WorkoutStatus, { cls: string; label: string }> = {
+  PLANNED:     { cls: "bg-muted text-muted-foreground",           label: "Prévue" },
+  COMPLETED:   { cls: "bg-success/20 text-success",                label: "Faite" },
+  PARTIAL:     { cls: "bg-warning/20 text-warning",                label: "Partielle" },
+  MISSED:      { cls: "bg-destructive/20 text-destructive",        label: "Manquée" },
+  RESCHEDULED: { cls: "bg-chart-2/20 text-chart-2",                label: "Déplacée" },
+  REPLACED:    { cls: "bg-muted text-muted-foreground line-through", label: "Remplacée" },
 };
 
 export function WorkoutTypeBadge({ type }: { type: WorkoutType }) {
@@ -35,10 +35,10 @@ export function WorkoutTypeBadge({ type }: { type: WorkoutType }) {
 }
 
 export function StatusChip({ status }: { status: WorkoutStatus }) {
+  const { cls, label } = STATUS_META[status];
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
-      STATUS_COLORS[status])}>
-      {status.toLowerCase()}
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap", cls)}>
+      {label}
     </span>
   );
 }
