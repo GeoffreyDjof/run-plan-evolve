@@ -5,9 +5,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   getWorkout, getMyProfile, logWorkoutCompletion,
-  rescheduleWorkout, replaceWorkout,
+  rescheduleWorkout, replaceWorkout, getWorkoutComparison,
 } from "@/lib/api/training.functions";
 import { WorkoutTypeBadge, StatusChip } from "@/components/badges";
+import { COMPARISON_STATUS_LABEL, paceSecToString, type ComparisonStatus } from "@/lib/activities/comparison";
 import { paceRangeFromVMA } from "@/lib/training/paces";
 import { equivalentWorkouts } from "@/lib/training/alternatives";
 import { Button } from "@/components/ui/button";
