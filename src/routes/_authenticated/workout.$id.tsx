@@ -30,8 +30,13 @@ function WorkoutDetail() {
   const qc = useQueryClient();
   const fetchWorkout = useServerFn(getWorkout);
   const fetchProfile = useServerFn(getMyProfile);
+  const fetchComparison = useServerFn(getWorkoutComparison);
   const { data, isLoading } = useQuery({ queryKey: ["workout", id], queryFn: () => fetchWorkout({ data: { id } }) });
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const { data: cmp } = useQuery({
+    queryKey: ["workout-comparison", id],
+    queryFn: () => fetchComparison({ data: { workout_id: id } }),
+  });
 
   if (isLoading || !profile) return <div className="p-6 text-muted-foreground">Loading…</div>;
   if (!data) return <div className="p-6">Not found</div>;
