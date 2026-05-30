@@ -56,6 +56,30 @@ export function paceRangeFromVMA(vmaKmh: number, minPct: number, maxPct: number)
   };
 }
 
+/**
+ * Annotate text mentions of "XX% VMA" or "XX–YY% VMA" with the matching pace
+ * computed from the athlete's current VMA. Examples:
+ *   "5 × 3 min @ 95% VMA" → "5 × 3 min @ 95% VMA (4:13/km)"
+ *   "10 min @ 82–88% VMA" → "10 min @ 82–88% VMA (4:33–4:53/km)"
+ */
+export function annotatePaces(text: string | null | undefined, vmaKmh: number): string {
+  if (!text) return "";
+  if (!Number.isFinite(vmaKmh) || vmaKmh <= 0) return text;
+  // Match "XX% VMA" optionally preceded by a range "YY[–-]". Avoid double-annotation
+  // by requiring no "(...)" pace block immediately after.
+  const re = /(\d{2,3})(?:\s*[–-]\s*(\d{2,3}))?\s*%\s*VMA(?!\s*\()/gi;
+  return text.replace(re, (match, a: string, b: string | undefined) => {
+    const lo = parseInt(a, 10);
+    const hi = b ? parseInt(b, 10) : lo;
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return match;
+    const minPct = Math.min(lo, hi);
+    const maxPct = Math.max(lo, hi);
+    const r = paceRangeFromVMA(vmaKmh, minPct, maxPct);
+    const pace = minPct === maxPct ? r.paceMin : `${r.paceMin}–${r.paceMax}`;
+    return `${match} (${pace}/km)`;
+  });
+}
+
 /** load = minutes * RPE */
 export function estimateWorkoutLoad(durationMinutes: number, rpe: number): number {
   return Math.round(durationMinutes * rpe);
