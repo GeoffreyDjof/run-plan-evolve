@@ -80,7 +80,8 @@ function LogRunPage() {
       qc.invalidateQueries({ queryKey: ["planned-vs-actual"] });
       qc.invalidateQueries({ queryKey: ["activity-summary"] });
       toast.success("Sortie ajoutée");
-      navigate({ to: workoutId !== "none" ? "/workout/$id" : "/activities", params: { id: workoutId } as any });
+      if (workoutId !== "none") navigate({ to: "/workout/$id", params: { id: workoutId } });
+      else navigate({ to: "/activities" });
     },
     onError: (e) => toast.error((e as Error).message),
   });
