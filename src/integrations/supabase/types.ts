@@ -63,10 +63,13 @@ export type Database = {
           current_level: Database["public"]["Enums"]["runner_level"] | null
           id: string
           name: string | null
+          objective_date: string | null
+          objective_type: Database["public"]["Enums"]["objective_type"]
           onboarded: boolean | null
           preferred_days: string[] | null
           race_date: string | null
           sessions_per_week: number | null
+          sex: Database["public"]["Enums"]["sex_type"] | null
           target_10k_time: string | null
           updated_at: string
           user_id: string
@@ -79,10 +82,13 @@ export type Database = {
           current_level?: Database["public"]["Enums"]["runner_level"] | null
           id?: string
           name?: string | null
+          objective_date?: string | null
+          objective_type?: Database["public"]["Enums"]["objective_type"]
           onboarded?: boolean | null
           preferred_days?: string[] | null
           race_date?: string | null
           sessions_per_week?: number | null
+          sex?: Database["public"]["Enums"]["sex_type"] | null
           target_10k_time?: string | null
           updated_at?: string
           user_id: string
@@ -95,10 +101,13 @@ export type Database = {
           current_level?: Database["public"]["Enums"]["runner_level"] | null
           id?: string
           name?: string | null
+          objective_date?: string | null
+          objective_type?: Database["public"]["Enums"]["objective_type"]
           onboarded?: boolean | null
           preferred_days?: string[] | null
           race_date?: string | null
           sessions_per_week?: number | null
+          sex?: Database["public"]["Enums"]["sex_type"] | null
           target_10k_time?: string | null
           updated_at?: string
           user_id?: string
@@ -282,8 +291,10 @@ export type Database = {
           created_at: string
           current_week: number
           duration_weeks: number
+          end_date: string | null
           id: string
           name: string
+          objective: string | null
           race_date: string
           start_date: string
           status: Database["public"]["Enums"]["plan_status"]
@@ -293,8 +304,10 @@ export type Database = {
           created_at?: string
           current_week?: number
           duration_weeks?: number
+          end_date?: string | null
           id?: string
           name?: string
+          objective?: string | null
           race_date: string
           start_date: string
           status?: Database["public"]["Enums"]["plan_status"]
@@ -304,8 +317,10 @@ export type Database = {
           created_at?: string
           current_week?: number
           duration_weeks?: number
+          end_date?: string | null
           id?: string
           name?: string
+          objective?: string | null
           race_date?: string
           start_date?: string
           status?: Database["public"]["Enums"]["plan_status"]
@@ -459,6 +474,45 @@ export type Database = {
           },
         ]
       }
+      workout_comparisons: {
+        Row: {
+          completed_workout_id: string
+          created_at: string
+          distance_delta_km: number | null
+          duration_delta_sec: number | null
+          id: string
+          pace_delta_sec_per_km: number | null
+          planned_workout_id: string
+          status: Database["public"]["Enums"]["comparison_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_workout_id: string
+          created_at?: string
+          distance_delta_km?: number | null
+          duration_delta_sec?: number | null
+          id?: string
+          pace_delta_sec_per_km?: number | null
+          planned_workout_id: string
+          status?: Database["public"]["Enums"]["comparison_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_workout_id?: string
+          created_at?: string
+          distance_delta_km?: number | null
+          duration_delta_sec?: number | null
+          id?: string
+          pace_delta_sec_per_km?: number | null
+          planned_workout_id?: string
+          status?: Database["public"]["Enums"]["comparison_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       workout_logs: {
         Row: {
           actual_distance_km: number | null
@@ -534,6 +588,8 @@ export type Database = {
           replaced_by_workout_id: string | null
           scheduled_date: string
           status: Database["public"]["Enums"]["workout_status"]
+          target_distance_km: number | null
+          target_hr_zone: string | null
           target_pace_max: string | null
           target_pace_min: string | null
           target_vma_max_percent: number | null
@@ -560,6 +616,8 @@ export type Database = {
           replaced_by_workout_id?: string | null
           scheduled_date: string
           status?: Database["public"]["Enums"]["workout_status"]
+          target_distance_km?: number | null
+          target_hr_zone?: string | null
           target_pace_max?: string | null
           target_pace_min?: string | null
           target_vma_max_percent?: number | null
@@ -586,6 +644,8 @@ export type Database = {
           replaced_by_workout_id?: string | null
           scheduled_date?: string
           status?: Database["public"]["Enums"]["workout_status"]
+          target_distance_km?: number | null
+          target_hr_zone?: string | null
           target_pace_max?: string | null
           target_pace_min?: string | null
           target_vma_max_percent?: number | null
@@ -624,7 +684,17 @@ export type Database = {
     Enums: {
       activity_file_type: "FIT" | "GPX" | "TCX" | "CSV" | "UNKNOWN"
       activity_kind: "RUN" | "RIDE" | "WALK" | "STRENGTH" | "OTHER"
-      activity_source_type: "FILE_UPLOAD" | "MANUAL_ENTRY" | "STRAVA"
+      activity_source_type:
+        | "FILE_UPLOAD"
+        | "MANUAL_ENTRY"
+        | "STRAVA"
+        | "STRAVA_SYNC"
+      comparison_status:
+        | "on_track"
+        | "too_fast"
+        | "too_slow"
+        | "incomplete"
+        | "overdone"
       completion_status: "FULL" | "PARTIAL" | "NONE"
       fatigue_level: "LOW" | "NORMAL" | "HIGH"
       file_parsing_status: "PENDING" | "PARSED" | "FAILED" | "UNSUPPORTED"
@@ -633,9 +703,11 @@ export type Database = {
         | "MANUALLY_MATCHED"
         | "REJECTED"
         | "NEEDS_REVIEW"
+      objective_type: "5k" | "10k" | "semi" | "marathon"
       pain_level: "NONE" | "MILD" | "MODERATE" | "SEVERE"
       plan_status: "ACTIVE" | "COMPLETED" | "ARCHIVED"
       runner_level: "RETURNING" | "REGULAR" | "ADVANCED"
+      sex_type: "male" | "female" | "other"
       sleep_quality: "GOOD" | "AVERAGE" | "POOR"
       workout_status:
         | "PLANNED"
@@ -785,7 +857,19 @@ export const Constants = {
     Enums: {
       activity_file_type: ["FIT", "GPX", "TCX", "CSV", "UNKNOWN"],
       activity_kind: ["RUN", "RIDE", "WALK", "STRENGTH", "OTHER"],
-      activity_source_type: ["FILE_UPLOAD", "MANUAL_ENTRY", "STRAVA"],
+      activity_source_type: [
+        "FILE_UPLOAD",
+        "MANUAL_ENTRY",
+        "STRAVA",
+        "STRAVA_SYNC",
+      ],
+      comparison_status: [
+        "on_track",
+        "too_fast",
+        "too_slow",
+        "incomplete",
+        "overdone",
+      ],
       completion_status: ["FULL", "PARTIAL", "NONE"],
       fatigue_level: ["LOW", "NORMAL", "HIGH"],
       file_parsing_status: ["PENDING", "PARSED", "FAILED", "UNSUPPORTED"],
@@ -795,9 +879,11 @@ export const Constants = {
         "REJECTED",
         "NEEDS_REVIEW",
       ],
+      objective_type: ["5k", "10k", "semi", "marathon"],
       pain_level: ["NONE", "MILD", "MODERATE", "SEVERE"],
       plan_status: ["ACTIVE", "COMPLETED", "ARCHIVED"],
       runner_level: ["RETURNING", "REGULAR", "ADVANCED"],
+      sex_type: ["male", "female", "other"],
       sleep_quality: ["GOOD", "AVERAGE", "POOR"],
       workout_status: [
         "PLANNED",
