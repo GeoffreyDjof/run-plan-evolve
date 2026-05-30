@@ -71,22 +71,25 @@ function WorkoutDetail() {
         <Box label="Load" value={String(w.estimated_load ?? "—")} />
       </div>
 
-      <Section title="Warm-up" body={w.warmup} />
-      <Section title="Main set" body={w.main_set} highlight />
-      <Section title="Recovery" body={w.recovery} />
-      <Section title="Cool-down" body={w.cooldown} />
+      <Section title="Warm-up" body={w.warmup} vma={Number(profile.vma_kmh)} />
+      <Section title="Main set" body={w.main_set} vma={Number(profile.vma_kmh)} highlight />
+      <Section title="Recovery" body={w.recovery} vma={Number(profile.vma_kmh)} />
+      <Section title="Cool-down" body={w.cooldown} vma={Number(profile.vma_kmh)} />
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Target zone</div>
         <div className="text-sm tabular">
           {w.target_vma_min_percent}–{w.target_vma_max_percent}% VMA
-          {" · "}{range.kmhMin}–{range.kmhMax} km/h
           {" · "}{range.paceMin}–{range.paceMax}/km
+          {" · "}{range.kmhMin}–{range.kmhMax} km/h
+        </div>
+        <div className="text-[11px] text-muted-foreground mt-1">
+          Calculé sur ta VMA actuelle : {Number(profile.vma_kmh).toFixed(1)} km/h
         </div>
       </div>
       {w.notes && (
-        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm whitespace-pre-line">
           <div className="text-xs uppercase tracking-wider text-primary mb-1">Coach note</div>
-          {w.notes}
+          {annotatePaces(w.notes, Number(profile.vma_kmh))}
         </div>
       )}
 
