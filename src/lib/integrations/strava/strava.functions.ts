@@ -1,17 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertStravaEnabled, isStravaSyncEnabled } from "@/lib/integrations/strava/flag.server";
 import {
   exchangeCodeForTokens,
   createPushSubscription,
   deletePushSubscription,
   listPushSubscriptions,
   getStravaCreds,
-} from "@/lib/strava/strava.server";
+} from "@/lib/integrations/strava/strava.server";
+
+/** Public flag for the client — no secrets, no tokens. */
+export const getStravaIntegrationStatus = createServerFn({ method: "GET" }).handler(async () => {
+  return { enabled: isStravaSyncEnabled() };
+});
 
 export const getStravaPublicConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
+    assertStravaEnabled();
     const { clientId } = getStravaCreds();
     return { clientId };
   });
@@ -19,6 +26,7 @@ export const getStravaPublicConfig = createServerFn({ method: "GET" })
 export const getStravaStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    assertStravaEnabled();
     const { supabase, userId } = context;
     const { data } = await supabase
       .from("strava_connections")
@@ -32,6 +40,7 @@ export const connectStravaWithCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ code: z.string().min(1).max(2048) }).parse(d))
   .handler(async ({ data, context }) => {
+    assertStravaEnabled();
     const { supabase, userId } = context;
     const t = await exchangeCodeForTokens(data.code);
     if (!t.athlete?.id) throw new Error("Strava did not return an athlete id");
@@ -56,8 +65,8 @@ export const connectStravaWithCode = createServerFn({ method: "POST" })
 export const disconnectStrava = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    assertStravaEnabled();
     const { supabase, userId } = context;
-    // Try to remove any existing push subscription tied to this connection
     const { data: conn } = await supabase
       .from("strava_connections")
       .select("subscription_id")
@@ -74,8 +83,8 @@ export const subscribeStravaWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ callbackUrl: z.string().url() }).parse(d))
   .handler(async ({ data, context }) => {
+    assertStravaEnabled();
     const { supabase, userId } = context;
-    // Strava only allows one push subscription per app. Reuse if it already exists.
     const existing = await listPushSubscriptions().catch(() => []);
     const reuse = existing.find((s) => s.callback_url === data.callbackUrl);
     const sub = reuse ?? (await createPushSubscription(data.callbackUrl));
@@ -90,6 +99,7 @@ export const subscribeStravaWebhook = createServerFn({ method: "POST" })
 export const unsubscribeStravaWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    assertStravaEnabled();
     const { supabase, userId } = context;
     const { data: conn } = await supabase
       .from("strava_connections")
