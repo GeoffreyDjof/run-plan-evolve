@@ -158,12 +158,12 @@ function Box({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Section({ title, body, highlight }: { title: string; body: string | null; highlight?: boolean }) {
+function Section({ title, body, vma, highlight }: { title: string; body: string | null; vma: number; highlight?: boolean }) {
   if (!body) return null;
   return (
     <div className={`rounded-xl border p-4 ${highlight ? "border-primary/30 bg-primary/5" : "border-border bg-card"}`}>
       <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{title}</div>
-      <div className="text-sm whitespace-pre-line">{body}</div>
+      <div className="text-sm whitespace-pre-line">{annotatePaces(body, vma)}</div>
     </div>
   );
 }
