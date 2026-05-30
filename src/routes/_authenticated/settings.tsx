@@ -4,23 +4,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getMyProfile, updateProfile, resetPlan } from "@/lib/api/training.functions";
-import {
-  getStravaStatus,
-  getStravaPublicConfig,
-  connectStravaWithCode,
-  disconnectStrava,
-  subscribeStravaWebhook,
-  unsubscribeStravaWebhook,
-} from "@/lib/api/strava.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, RotateCcw, Link2, Unlink, Radio } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LogOut, RotateCcw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: Settings,
 });
+
+type Sex = "male" | "female" | "other";
+type Objective = "5k" | "10k" | "semi" | "marathon";
+type Level = "RETURNING" | "REGULAR" | "ADVANCED";
 
 function Settings() {
   const navigate = useNavigate();
@@ -28,26 +25,60 @@ function Settings() {
   const up = useServerFn(updateProfile);
   const rp = useServerFn(resetPlan);
   const { data: profile, refetch } = useQuery({ queryKey: ["profile"], queryFn: () => fp() });
-  const [vma, setVma] = useState(14);
-  const [raceDate, setRaceDate] = useState("");
-  const [target, setTarget] = useState("");
+
+  const [name, setName] = useState("");
+  const [age, setAge] = useState<string>("");
+  const [sex, setSex] = useState<Sex | "">("");
+  const [vma, setVma] = useState<string>("14");
+  const [objectiveType, setObjectiveType] = useState<Objective>("10k");
+  const [objectiveDate, setObjectiveDate] = useState("");
+  const [level, setLevel] = useState<Level>("REGULAR");
+  const [sessions, setSessions] = useState<string>("3");
 
   useEffect(() => {
     if (profile) {
-      setVma(Number(profile.vma_kmh));
-      setRaceDate(profile.race_date ?? "");
-      setTarget(profile.target_10k_time ?? "");
+      setName(profile.name ?? "");
+      setAge(profile.age != null ? String(profile.age) : "");
+      setSex((profile.sex as Sex) ?? "");
+      setVma(String(profile.vma_kmh ?? 14));
+      setObjectiveType(((profile as any).objective_type as Objective) ?? "10k");
+      setObjectiveDate((profile as any).objective_date ?? profile.race_date ?? "");
+      setLevel((profile.current_level as Level) ?? "REGULAR");
+      setSessions(String(profile.sessions_per_week ?? 3));
     }
   }, [profile]);
 
   const updateMut = useMutation({
-    mutationFn: () => up({ data: { vma_kmh: vma, race_date: raceDate, target_10k_time: target } }),
-    onSuccess: () => { toast.success("Updated"); refetch(); },
+    mutationFn: () => {
+      const vmaNum = parseFloat(vma);
+      const ageNum = parseInt(age || "0", 10);
+      const sessionsNum = parseInt(sessions || "0", 10);
+      if (!name.trim()) throw new Error("Nom requis");
+      if (!(ageNum >= 10 && ageNum <= 99)) throw new Error("Âge invalide");
+      if (!(vmaNum >= 5 && vmaNum <= 25)) throw new Error("VMA invalide (5–25 km/h)");
+      if (!objectiveDate) throw new Error("Date d'objectif requise");
+      if (!(sessionsNum >= 3 && sessionsNum <= 4)) throw new Error("3 ou 4 séances par semaine");
+      return up({
+        data: {
+          name: name.trim(),
+          age: ageNum,
+          sex: sex || null,
+          vma_kmh: vmaNum,
+          objective_type: objectiveType,
+          objective_date: objectiveDate,
+          race_date: objectiveDate, // keep legacy in sync for plan logic
+          current_level: level,
+          sessions_per_week: sessionsNum,
+        },
+      });
+    },
+    onSuccess: () => { toast.success("Profil mis à jour"); refetch(); },
     onError: (e) => toast.error((e as Error).message),
   });
+
   const resetMut = useMutation({
     mutationFn: () => rp(),
-    onSuccess: () => { toast.success("Plan reset"); navigate({ to: "/onboarding" }); },
+    onSuccess: () => { toast.success("Plan réinitialisé"); navigate({ to: "/onboarding" }); },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -56,126 +87,98 @@ function Settings() {
     navigate({ to: "/login" });
   };
 
-  // ---------- Strava ----------
-  const gss = useServerFn(getStravaStatus);
-  const gsp = useServerFn(getStravaPublicConfig);
-  const csc = useServerFn(connectStravaWithCode);
-  const dis = useServerFn(disconnectStrava);
-  const sub = useServerFn(subscribeStravaWebhook);
-  const unsub = useServerFn(unsubscribeStravaWebhook);
-  const { data: stravaStatus, refetch: refetchStrava } = useQuery({
-    queryKey: ["strava-status"],
-    queryFn: () => gss(),
-  });
-  const { data: stravaCfg } = useQuery({ queryKey: ["strava-cfg"], queryFn: () => gsp() });
-
-  // Capture ?code= after Strava OAuth redirect
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const code = url.searchParams.get("code");
-    const stravaScope = url.searchParams.get("scope");
-    if (code && stravaScope?.includes("activity")) {
-      csc({ data: { code } })
-        .then(() => { toast.success("Strava connecté"); refetchStrava(); })
-        .catch((e) => toast.error((e as Error).message))
-        .finally(() => {
-          url.searchParams.delete("code");
-          url.searchParams.delete("scope");
-          url.searchParams.delete("state");
-          window.history.replaceState({}, "", url.pathname + (url.search ? "?" + url.searchParams.toString() : ""));
-        });
-    }
-  }, [csc, refetchStrava]);
-
-  const connectStrava = () => {
-    if (!stravaCfg?.clientId) { toast.error("Strava non configuré"); return; }
-    const redirect = `${window.location.origin}/settings`;
-    const u = new URL("https://www.strava.com/oauth/authorize");
-    u.searchParams.set("client_id", stravaCfg.clientId);
-    u.searchParams.set("response_type", "code");
-    u.searchParams.set("redirect_uri", redirect);
-    u.searchParams.set("approval_prompt", "auto");
-    u.searchParams.set("scope", "read,activity:read_all");
-    window.location.href = u.toString();
-  };
-
-  const disconnectMut = useMutation({
-    mutationFn: () => dis(),
-    onSuccess: () => { toast.success("Strava déconnecté"); refetchStrava(); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const subscribeMut = useMutation({
-    mutationFn: () => sub({ data: { callbackUrl: `${window.location.origin}/api/public/strava/webhook` } }),
-    onSuccess: () => { toast.success("Synchro auto activée"); refetchStrava(); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const unsubMut = useMutation({
-    mutationFn: () => unsub(),
-    onSuccess: () => { toast.success("Synchro auto désactivée"); refetchStrava(); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
   if (!profile) return <div className="p-6 text-muted-foreground">Loading…</div>;
 
   return (
     <div className="px-5 pt-8 pb-6 max-w-md mx-auto space-y-5">
-      <h1 className="text-3xl font-bold">Settings</h1>
+      <h1 className="text-3xl font-bold">Profil & Réglages</h1>
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold">Training</h2>
-        <div><Label>VMA (km/h)</Label><Input type="number" step="0.1" value={vma} onChange={(e) => setVma(+e.target.value)} /></div>
-        <div><Label>Race date</Label><Input type="date" value={raceDate} onChange={(e) => setRaceDate(e.target.value)} /></div>
-        <div><Label>Target 10K time</Label><Input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="45:00" /></div>
-        <Button onClick={() => updateMut.mutate()} disabled={updateMut.isPending} className="w-full">Save</Button>
+        <h2 className="text-sm font-semibold">Athlète</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Nom">
+            <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Âge">
+            <Input type="number" min={10} max={99} value={age} onChange={(e) => setAge(e.target.value)} />
+          </Field>
+          <Field label="Sexe">
+            <Select value={sex || "unset"} onValueChange={(v) => setSex(v === "unset" ? "" : (v as Sex))}>
+              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unset">—</SelectItem>
+                <SelectItem value="male">Homme</SelectItem>
+                <SelectItem value="female">Femme</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Niveau actuel">
+            <Select value={level} onValueChange={(v) => setLevel(v as Level)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="RETURNING">Reprise</SelectItem>
+                <SelectItem value="REGULAR">Normal</SelectItem>
+                <SelectItem value="ADVANCED">Avancé</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Radio className="h-4 w-4" />Strava
-        </h2>
-        {!stravaStatus?.connected ? (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Connecte ton compte Strava pour importer automatiquement tes activités.
-            </p>
-            <Button onClick={connectStrava} className="w-full">
-              <Link2 className="h-4 w-4 mr-2" />Connecter Strava
-            </Button>
-          </>
-        ) : (
-          <>
-            <div className="text-xs text-muted-foreground">
-              Athlète #{stravaStatus.connection?.athlete_id}
-              {stravaStatus.connection?.last_sync_at && (
-                <> · dernière synchro {new Date(stravaStatus.connection.last_sync_at).toLocaleString()}</>
-              )}
-            </div>
-            {stravaStatus.connection?.subscription_id ? (
-              <Button variant="outline" onClick={() => unsubMut.mutate()} disabled={unsubMut.isPending} className="w-full">
-                Désactiver la synchro auto
-              </Button>
-            ) : (
-              <Button onClick={() => subscribeMut.mutate()} disabled={subscribeMut.isPending} className="w-full">
-                Activer la synchro auto (webhook)
-              </Button>
-            )}
-            <Button variant="ghost" onClick={() => disconnectMut.mutate()} disabled={disconnectMut.isPending} className="w-full text-destructive">
-              <Unlink className="h-4 w-4 mr-2" />Déconnecter Strava
-            </Button>
-          </>
-        )}
+        <h2 className="text-sm font-semibold">Entraînement</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="VMA (km/h)">
+            <Input type="number" step="0.1" min={5} max={25} value={vma} onChange={(e) => setVma(e.target.value)} />
+          </Field>
+          <Field label="Séances / semaine">
+            <Select value={sessions} onValueChange={setSessions}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3</SelectItem>
+                <SelectItem value="4">4</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Objectif">
+            <Select value={objectiveType} onValueChange={(v) => setObjectiveType(v as Objective)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5k">5 km</SelectItem>
+                <SelectItem value="10k">10 km</SelectItem>
+                <SelectItem value="semi">Semi-marathon</SelectItem>
+                <SelectItem value="marathon">Marathon</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Date de l'objectif">
+            <Input type="date" value={objectiveDate} onChange={(e) => setObjectiveDate(e.target.value)} />
+          </Field>
+        </div>
+        <Button onClick={() => updateMut.mutate()} disabled={updateMut.isPending} className="w-full">
+          Enregistrer
+        </Button>
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold">Account</h2>
-        <div className="text-sm text-muted-foreground">{profile.name}</div>
+        <h2 className="text-sm font-semibold">Compte</h2>
         <Button variant="outline" onClick={() => resetMut.mutate()} disabled={resetMut.isPending} className="w-full">
-          <RotateCcw className="h-4 w-4 mr-2" />Reset plan
+          <RotateCcw className="h-4 w-4 mr-2" />Réinitialiser le plan
         </Button>
         <Button variant="ghost" onClick={signOut} className="w-full text-destructive">
-          <LogOut className="h-4 w-4 mr-2" />Sign out
+          <LogOut className="h-4 w-4 mr-2" />Se déconnecter
         </Button>
       </section>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</Label>
+      {children}
     </div>
   );
 }
