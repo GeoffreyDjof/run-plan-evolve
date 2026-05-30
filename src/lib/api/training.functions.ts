@@ -271,8 +271,8 @@ export const rescheduleWorkout = createServerFn({ method: "POST" })
     // Recompute week_number from the new date so the calendar bucketing stays in sync.
     let newWeekNumber = orig.week_number;
     if (ctx.plan?.start_date) {
-      const planStart = mondayOf(ctx.plan.start_date);
-      const targetMonday = mondayOf(data.date);
+      const planStart = mondayOf(new Date(ctx.plan.start_date + "T00:00:00"));
+      const targetMonday = mondayOf(new Date(data.date + "T00:00:00"));
       const diffDays = Math.floor((targetMonday.getTime() - planStart.getTime()) / 86400000);
       const computed = Math.floor(diffDays / 7) + 1;
       if (computed >= 1) newWeekNumber = computed;
