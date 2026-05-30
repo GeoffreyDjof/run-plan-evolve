@@ -284,6 +284,7 @@ export const manualMatch = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     await supabase.from("workouts").update({ status: "COMPLETED" }).eq("id", data.workoutId);
+    await upsertWorkoutComparison(supabase, userId, data.workoutId, actualFromImportedActivity(activity));
     return { ok: true };
   });
 
