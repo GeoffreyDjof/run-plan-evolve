@@ -116,8 +116,12 @@ export const updateProfile = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     name: z.string().min(1).max(60).optional(),
     age: z.number().int().min(10).max(99).optional(),
+    sex: z.enum(["male", "female", "other"]).nullable().optional(),
     vma_kmh: z.number().min(5).max(25).optional(),
     race_date: z.string().optional(),
+    objective_date: z.string().optional(),
+    objective_type: z.enum(["5k", "10k", "semi", "marathon"]).optional(),
+    current_level: z.enum(["RETURNING", "REGULAR", "ADVANCED"]).optional(),
     sessions_per_week: z.number().int().min(3).max(4).optional(),
     preferred_days: z.array(z.string()).min(2).max(7).optional(),
     target_10k_time: z.string().optional().nullable(),
