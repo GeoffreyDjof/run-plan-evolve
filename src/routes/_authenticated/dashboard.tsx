@@ -15,7 +15,6 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function Dashboard() {
-  const navigate = useNavigate();
   const fetchPlan = useServerFn(getPlanWorkouts);
   const fetchProfile = useServerFn(getMyProfile);
   const fetchSummary = useServerFn(getActivitySummary);
