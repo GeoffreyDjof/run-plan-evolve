@@ -1,75 +1,81 @@
-# Manual Activity Upload & Matching
+# Stabilisation du data model
 
-No Garmin/Strava/OAuth code exists in the project today, so nothing to remove. The Google sign-in on `/login` is unrelated and stays. This plan is purely additive.
+Objectif : aligner la base existante sur le modèle que tu as listé, sans casser le code actuel. La majorité existe déjà sous d'autres noms — je propose donc d'**ajouter les champs manquants** plutôt que de tout renommer (ça éviterait de réécrire tout le code training/calendar/upload).
 
-## 1. Database (single migration)
+## 1. `athlete_profiles` — ajouts
 
-New tables, all RLS-locked to `auth.uid() = user_id`:
+Manque :
+- `sex` (enum `male | female | other`)
+- `objective_type` (enum `5k | 10k | semi | marathon`) — défaut `10k`
+- `objective_date` (date) — alias logique de `race_date` déjà présent ; je garde `race_date` et ajoute `objective_date` qui sera synchronisé, OU je renomme. **Reco : renommer `race_date` → `objective_date`** (un seul endroit dans le code).
+- `weekly_sessions_target` (int) — déjà présent sous `sessions_per_week`. **Reco : garder `sessions_per_week`** (déjà câblé partout) et considérer `weekly_sessions_target` comme son nom métier.
 
-- `imported_activities` — parsed activity summary (all fields per spec, `raw_summary jsonb`).
-- `activity_splits` — per-split rows, FK by `imported_activity_id`.
-- `uploaded_activity_files` — upload record + parsing status (`PENDING|PARSED|FAILED|UNSUPPORTED`).
-- `workout_activity_matches` — scored match between a workout and an activity.
-- `post_activity_feedback` — RPE/pain/fatigue/sleep/comment tied to an activity (+ optional workout).
+Déjà OK : `id`, `name`, `age`, `vma_kmh`, `current_level` (≈ `current_fitness_level`).
 
-Plus a private Storage bucket `activity-files` with per-user-folder RLS (`{user_id}/...`).
+## 2. `training_plans` — ajouts
 
-No `access_token`, `refresh_token`, `client_secret`, `provider_user_id`, or webhook columns anywhere.
+Manque :
+- `end_date` (date, calculé à partir de `start_date + duration_weeks`)
+- `objective` (text, copie de l'objectif au moment de la création)
+- `status` : déjà `plan_status` enum — vérifier qu'il contient `active | archived`.
 
-## 2. Parsers (`src/lib/activities/`)
+## 3. `workouts` (= PlannedWorkout) — ajouts
 
-Pure TS, run client-side (no server upload needed for parsing — file is read in the browser, summary shown, then persisted):
+Manque :
+- `target_distance_km` (numeric)
+- `target_duration_min` : déjà `estimated_duration_minutes` ✅
+- `target_pace_min_km` : déjà `target_pace_min` / `target_pace_max` (range) ✅
+- `target_hr_zone` (text, ex: "Z2", "Z4")
+- `instructions` : déjà `objective + warmup + main_set + recovery + cooldown` ✅
+- `status` : déjà OK (`PLANNED | COMPLETED | PARTIAL | MISSED | RESCHEDULED | REPLACED`) — `skipped | moved` mappent sur `MISSED | RESCHEDULED`.
+- `workout_type` : enum actuel plus riche (VMA_SHORT, THRESHOLD…) qu'on garde ; pas de régression.
 
-- `gpx.ts` — DOMParser on trackpoints: distance via haversine, duration from timestamps, elevation gain (positive deltas), pace.
-- `tcx.ts` — DOMParser on `Activity/Lap/Track/Trackpoint`: distance, duration, HR, cadence, splits per lap.
-- `csv.ts` — header-driven (`date,activity_type,distance_km,duration,average_heart_rate,max_heart_rate,elevation_gain_meters`).
-- `fit.ts` — interface + clear `UNSUPPORTED` return ("FIT parsing is prepared but not enabled yet. Please upload GPX or TCX for now."). No fake values.
-- `detect.ts` — pick parser by extension; `index.ts` exports `parseActivityFile(file): Promise<ParsedActivity>`.
+## 4. CompletedWorkout
 
-## 3. Matching engine (`src/lib/activities/matching.ts`)
+Déjà couvert par **deux tables existantes** :
+- `imported_activities` (source = `FILE_UPLOAD` ou maintenant `STRAVA_SYNC`) — données objectives.
+- `workout_logs` — RPE / pain / fatigue / sommeil / notes liés à un workout planifié.
+- Le lien planifié↔complété passe par `workout_activity_matches`.
 
-Pure function `scoreMatch(workout, activity) → { type_score, date_score, duration_score, intensity_score, confidence }` using the spec's rules. Server fn `matchActivity` runs candidates across same-day ±1 ±2, returns ranked list, persists best as `AUTO_MATCHED` (≥80), `NEEDS_REVIEW` (50–79), or leaves unmatched (<50). Always shows confirmation in UI.
+Ajouts proposés :
+- `imported_activities.source_type` enum : ajouter la valeur `STRAVA_SYNC` (déjà fait dans la migration Strava précédente — à vérifier).
+- `imported_activities.perceived_effort` (int 1-10) — aujourd'hui le RPE vit dans `workout_logs` / `post_activity_feedback`. **Reco : ne rien dupliquer**, le RPE reste sur le feedback.
 
-`compliance.ts` computes the 0–100 compliance score with the EASY-RPE leniency and hard-without-splits low-confidence rules.
+## 5. WorkoutComparison
 
-## 4. Server functions (`src/lib/api/activities.functions.ts`)
+**Nouvelle table** `workout_comparisons` :
+- `planned_workout_id` (uuid, FK logique → workouts)
+- `completed_workout_id` (uuid, FK logique → imported_activities)
+- `distance_delta_km` (numeric)
+- `pace_delta_sec_per_km` (int)
+- `duration_delta_sec` (int)
+- `status` enum `on_track | too_fast | too_slow | incomplete | overdone`
+- `user_id`, timestamps
 
-All `requireSupabaseAuth`-protected:
+Aujourd'hui ces deltas sont calculés à la volée par `complianceScore()` dans `planned-vs-actual.tsx`. Les **persister** permet : historique, requêtes de tendance, dashboards.
 
-- `saveParsedActivity({ parsed, filename, fileType })` — inserts `imported_activities`, `activity_splits`, links `uploaded_activity_files`.
-- `saveAndMatchActivity(...)` — above + runs matcher + writes `workout_activity_matches`.
-- `manuallyMatch({ activityId, workoutId })` / `unmatch({ matchId })`.
-- `saveFeedback({ activityId, workoutId?, rpe, pain, fatigue, sleep, comment })`.
-- `listActivities()`, `getActivity(id)`, `getPlannedVsActual(weekNumber?)`.
+## Migration unique
 
-## 5. UI
+Un seul fichier SQL qui :
+1. Ajoute les colonnes manquantes (`sex`, `objective_type`, `objective_date` en remplacement de `race_date`, `target_distance_km`, `target_hr_zone` sur `workouts`, `end_date` + `objective` sur `training_plans`).
+2. Crée la table `workout_comparisons` + RLS + GRANTs.
+3. Crée les enums (`sex`, `objective_type`, `comparison_status`).
+4. Trigger pour remplir `workout_comparisons` automatiquement à la création d'un `workout_activity_matches` (optionnel — peut aussi rester côté server fn).
 
-- New route `/_authenticated/upload.tsx` — drag-and-drop + file picker (accept `.fit,.gpx,.tcx,.csv`), parsing status, parsed-summary preview, manual-correction form (activity type, date/time, distance, duration, avg/max HR, elevation, RPE, pain, fatigue, comment), three buttons: **Save**, **Save & match**, **Cancel**. Privacy note at bottom: *"Files are only imported when you manually upload them. No Garmin, Strava, OAuth, tokens, or external sync are used."*
-- New route `/_authenticated/activities.tsx` — list of imported activities with match status badges.
-- New route `/_authenticated/planned-vs-actual.tsx` — per-workout planned vs actual table with compliance score.
-- **Dashboard** additions: latest uploaded activity card, unmatched count, needs-review count, weekly actual distance/duration/RPE-load tile.
-- **Calendar**: workout cards get `MatchedBadge`, `NeedsReviewBadge`, or `UnmatchedActivityDot`.
-- Nav link to "Upload" in the auth shell.
+## Code à toucher après migration
 
-## 6. Safety engine update (`src/lib/training/rules.ts` + `safety.ts`)
+- `src/lib/api/training.functions.ts` : profil onboarding (ajouter `sex`, `objective_type`).
+- `src/routes/_authenticated/onboarding.tsx` : nouveaux champs UI.
+- `src/lib/training/generator.ts` : utiliser `target_distance_km` quand fourni.
+- `src/lib/api/activities.functions.ts` : écrire dans `workout_comparisons` après un match.
 
-Extend `evaluatePlan` to also pull actual data:
-- `+15% actual weekly load vs prev actual week` → WARNING.
-- Moderate/severe pain in `post_activity_feedback` → recommend downgrading next hard workout (uses existing `recalibration.ts`).
-- Easy planned workout but matched activity RPE ≥ 8 → WARNING ("unexpectedly high RPE on easy run").
-- Two hard *actual* sessions within 48 h (from matched activities of hard workouts) → WARNING.
+## Hors scope (à valider)
 
-## Out of scope (call out, don't build)
+- Renommer `race_date` → `objective_date` casse `seed.ts`, `recalibration.ts`, dashboard. **Option A** : renommer + update code (propre). **Option B** : ajouter `objective_date` en alias et garder `race_date` (zéro risque).
 
-- Real FIT decoding — stubbed only.
-- Server-side re-parsing of uploaded files (parsing happens client-side; file stored for audit).
-- Background re-matching when new workouts are added.
+---
 
-## Technical notes
+**Avant que je lance la migration**, deux choix à confirmer :
 
-- Storage bucket policies: `bucket_id = 'activity-files' AND auth.uid()::text = (storage.foldername(name))[1]` for all of SELECT/INSERT/UPDATE/DELETE.
-- Haversine in `lib/activities/geo.ts`; pace formatter reused from existing `lib/training/paces.ts` where possible.
-- Zod schemas for every server fn input.
-- No new npm dependencies needed (DOMParser is built in; CSV parsed with a small custom splitter).
-
-Shall I proceed end-to-end, or trim/reorder (e.g., ship upload+parse+match first, planned-vs-actual + safety updates in a follow-up)?
+1. **Renommer `race_date` → `objective_date`** (option A propre, ~10 fichiers touchés) OU **garder les deux** (option B, zéro casse) ?
+2. **Persister `workout_comparisons`** maintenant, ou **garder le calcul à la volée** et juste ajouter les colonnes manquantes sur les autres tables ?
