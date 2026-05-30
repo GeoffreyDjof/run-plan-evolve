@@ -17,6 +17,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedPlannedVsActualRouteImport } from './routes/_authenticated/planned-vs-actual'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedLogRunRouteImport } from './routes/_authenticated/log-run'
 import { Route as AuthenticatedGeneratorRouteImport } from './routes/_authenticated/generator'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
@@ -64,6 +65,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedLogRunRoute = AuthenticatedLogRunRouteImport.update({
+  id: '/log-run',
+  path: '/log-run',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedGeneratorRoute = AuthenticatedGeneratorRouteImport.update({
   id: '/generator',
   path: '/generator',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/generator': typeof AuthenticatedGeneratorRoute
+  '/log-run': typeof AuthenticatedLogRunRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/planned-vs-actual': typeof AuthenticatedPlannedVsActualRoute
   '/progress': typeof AuthenticatedProgressRoute
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/generator': typeof AuthenticatedGeneratorRoute
+  '/log-run': typeof AuthenticatedLogRunRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/planned-vs-actual': typeof AuthenticatedPlannedVsActualRoute
   '/progress': typeof AuthenticatedProgressRoute
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/generator': typeof AuthenticatedGeneratorRoute
+  '/_authenticated/log-run': typeof AuthenticatedLogRunRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/planned-vs-actual': typeof AuthenticatedPlannedVsActualRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/dashboard'
     | '/generator'
+    | '/log-run'
     | '/onboarding'
     | '/planned-vs-actual'
     | '/progress'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/dashboard'
     | '/generator'
+    | '/log-run'
     | '/onboarding'
     | '/planned-vs-actual'
     | '/progress'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
     | '/_authenticated/generator'
+    | '/_authenticated/log-run'
     | '/_authenticated/onboarding'
     | '/_authenticated/planned-vs-actual'
     | '/_authenticated/progress'
@@ -256,6 +268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/log-run': {
+      id: '/_authenticated/log-run'
+      path: '/log-run'
+      fullPath: '/log-run'
+      preLoaderRoute: typeof AuthenticatedLogRunRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/generator': {
       id: '/_authenticated/generator'
       path: '/generator'
@@ -306,6 +325,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedGeneratorRoute: typeof AuthenticatedGeneratorRoute
+  AuthenticatedLogRunRoute: typeof AuthenticatedLogRunRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedPlannedVsActualRoute: typeof AuthenticatedPlannedVsActualRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
@@ -319,6 +339,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedGeneratorRoute: AuthenticatedGeneratorRoute,
+  AuthenticatedLogRunRoute: AuthenticatedLogRunRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedPlannedVsActualRoute: AuthenticatedPlannedVsActualRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,

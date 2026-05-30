@@ -28,37 +28,46 @@ function ActivitiesPage() {
     <div className="px-5 pt-8 pb-6 max-w-md mx-auto space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Activities</h1>
-          <p className="text-sm text-muted-foreground mt-1">Uploaded runs and other activities.</p>
+          <h1 className="text-3xl font-bold">Historique</h1>
+          <p className="text-sm text-muted-foreground mt-1">Sorties réalisées (saisie manuelle ou fichier).</p>
         </div>
-        <Link to="/upload">
-          <Button size="sm"><Upload className="h-4 w-4 mr-2" />Upload</Button>
+        <Link to="/log-run">
+          <Button size="sm"><Upload className="h-4 w-4 mr-2" />Ajouter</Button>
         </Link>
       </header>
 
       {activities.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No activities yet. Upload a GPX, TCX or CSV file to get started.
+          Aucune sortie pour l'instant. <Link to="/log-run" className="text-primary underline">Ajoute une sortie</Link> ou importe un fichier.
         </div>
       )}
 
       <div className="space-y-2">
         {activities.map((a) => {
           const m = matchByAct.get(a.id);
+          const isManual = a.source_type === "MANUAL_ENTRY";
           return (
             <div key={a.id} className="rounded-xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-3 mb-1">
                 <div className="text-sm font-medium">
-                  {a.activity_type} · {(Number(a.distance_meters) / 1000).toFixed(2)} km
+                  {(Number(a.distance_meters) / 1000).toFixed(2)} km
                 </div>
-                <MatchBadge match={m} />
+                <div className="flex items-center gap-1.5">
+                  <span className={cn(
+                    "text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full",
+                    isManual ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  )}>
+                    {isManual ? "Manuelle" : "Fichier"}
+                  </span>
+                  <MatchBadge match={m} />
+                </div>
               </div>
               <div className="text-xs text-muted-foreground tabular">
                 {new Date(a.start_time).toLocaleString()} · {formatDuration(a.duration_seconds)} · {formatPace(a.average_pace_sec_per_km)}
               </div>
               {m && (
                 <div className="text-xs text-muted-foreground mt-1">
-                  Confidence {m.confidence_score} — {m.match_reason}
+                  Lié à une séance · {m.match_reason}
                 </div>
               )}
             </div>

@@ -7,7 +7,7 @@ import { WorkoutTypeBadge, StatusChip } from "@/components/badges";
 import { paceRangeFromVMA } from "@/lib/training/paces";
 import { formatDuration, formatPace } from "@/lib/activities";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock, TrendingUp, Calendar, AlertTriangle, Upload, Activity } from "lucide-react";
+import { CheckCircle2, Clock, TrendingUp, Calendar, AlertTriangle, Upload, Activity, PlusCircle } from "lucide-react";
 import { checkBackToBackHard, checkLoadJump } from "@/lib/training/safety";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -30,9 +30,24 @@ function Dashboard() {
   const todayWorkout = data.workouts.find(w => w.scheduled_date === today);
   const upcoming = data.workouts.filter(w => w.status === "PLANNED" || w.status === "RESCHEDULED");
   const next = todayWorkout ?? upcoming.find(w => w.scheduled_date >= today) ?? upcoming[0];
-  const completed = data.workouts.filter(w => w.status === "COMPLETED").length;
+  
   const weekNum = next?.week_number ?? data.plan.current_week;
   const weekWorkouts = data.workouts.filter(w => w.week_number === weekNum);
+
+  // Weekly stats
+  const weekDone = weekWorkouts.filter(w => w.status === "COMPLETED").length;
+  const weekPlanned = weekWorkouts.length;
+  const weekMissed = weekWorkouts.filter(w => w.status === "MISSED").length;
+  const pastDueUndone = weekWorkouts.filter(
+    w => w.scheduled_date < today && w.status !== "COMPLETED" && w.status !== "PARTIAL" && w.status !== "REPLACED",
+  ).length;
+
+  // Status indicator
+  const fatigueFlag = (summary?.actualWarnings ?? []).some((w) => /fatigue|pain|douleur/i.test(w.message));
+  let weekStatus: { label: string; tone: "ok" | "warn" | "bad" } = { label: "Sur les rails", tone: "ok" };
+  if (pastDueUndone >= 2 || weekMissed >= 2) weekStatus = { label: "Retard important", tone: "bad" };
+  else if (pastDueUndone === 1 || weekMissed === 1) weekStatus = { label: "Retard léger", tone: "warn" };
+  if (fatigueFlag) weekStatus = { label: "Attention fatigue", tone: "warn" };
 
   const lite = data.workouts.map(w => ({
     id: w.id, scheduled_date: w.scheduled_date,
@@ -50,11 +65,26 @@ function Dashboard() {
     <div className="px-5 pt-8 pb-6 max-w-md mx-auto space-y-6">
       <header>
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Hello {profile.name?.split(" ")[0]}</p>
-        <h1 className="text-3xl font-bold mt-1">Week {weekNum} of 12</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {completed} completed · {data.workouts.length - completed} to go
-        </p>
+        <h1 className="text-3xl font-bold mt-1">Semaine {weekNum} / 12</h1>
+        <div className="flex items-center gap-2 mt-2">
+          <span
+            className={
+              "text-xs uppercase tracking-wider px-2 py-1 rounded-full font-semibold " +
+              (weekStatus.tone === "ok"
+                ? "bg-success/15 text-success"
+                : weekStatus.tone === "warn"
+                ? "bg-warning/15 text-warning"
+                : "bg-destructive/15 text-destructive")
+            }
+          >
+            {weekStatus.label}
+          </span>
+          <span className="text-sm text-muted-foreground tabular">
+            {weekDone}/{weekPlanned} séances faites
+          </span>
+        </div>
       </header>
+
 
       {warns.length > 0 && (
         <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 space-y-1">
@@ -108,9 +138,11 @@ function Dashboard() {
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Link to="/upload"><Button variant="outline" className="w-full"><Upload className="h-4 w-4 mr-2" />Upload activity</Button></Link>
-        <Link to="/planned-vs-actual"><Button variant="outline" className="w-full">Planned vs Actual</Button></Link>
+        <Link to="/log-run"><Button className="w-full"><PlusCircle className="h-4 w-4 mr-2" />Ajouter sortie</Button></Link>
+        <Link to="/upload"><Button variant="outline" className="w-full"><Upload className="h-4 w-4 mr-2" />Importer fichier</Button></Link>
       </div>
+      <Link to="/planned-vs-actual" className="block text-center text-xs text-primary underline">Voir Prévu vs Réalisé →</Link>
+
 
       <section>
         <div className="flex items-center justify-between mb-3">

@@ -204,6 +204,97 @@ export const saveActivity = createServerFn({ method: "POST" })
     return { activity, match: matchResult };
   });
 
+// ----- Manual run entry (no file) -----
+const manualRunInput = z.object({
+  date: z.string(),              // YYYY-MM-DD
+  time: z.string().optional(),   // HH:mm, optional, defaults to 12:00
+  distance_km: z.number().positive().max(300),
+  duration_min: z.number().positive().max(1000),
+  average_hr: z.number().int().min(30).max(240).nullable().optional(),
+  rpe: z.number().int().min(1).max(10).nullable().optional(),
+  notes: z.string().max(500).optional(),
+  workout_id: z.string().uuid().nullable().optional(),
+});
+
+export const logManualRun = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => manualRunInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const time = data.time && /^\d{2}:\d{2}$/.test(data.time) ? data.time : "12:00";
+    const startIso = new Date(`${data.date}T${time}:00`).toISOString();
+    const duration_seconds = Math.round(data.duration_min * 60);
+    const distance_meters = Math.round(data.distance_km * 1000);
+    const average_pace_sec_per_km =
+      data.distance_km > 0 ? Math.round(duration_seconds / data.distance_km) : null;
+
+    const { data: activity, error } = await supabase
+      .from("imported_activities")
+      .insert({
+        user_id: userId,
+        source_type: "MANUAL_ENTRY",
+        original_filename: null,
+        file_type: "UNKNOWN",
+        activity_type: "RUN",
+        start_time: startIso,
+        duration_seconds,
+        distance_meters,
+        average_pace_sec_per_km,
+        average_heart_rate: data.average_hr ?? null,
+        raw_summary: data.notes ? ({ notes: data.notes } as any) : null,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+
+    if (data.rpe || data.notes) {
+      await supabase.from("post_activity_feedback").insert({
+        user_id: userId,
+        imported_activity_id: activity.id,
+        rpe: data.rpe ?? null,
+        comment: data.notes ?? null,
+      });
+    }
+
+    // Optional manual link to a planned workout → triggers comparison
+    if (data.workout_id) {
+      // ensure workout belongs to user
+      const { data: workout } = await supabase
+        .from("workouts").select("id").eq("id", data.workout_id).eq("user_id", userId).maybeSingle();
+      if (workout) {
+        await supabase
+          .from("workout_activity_matches")
+          .delete()
+          .eq("user_id", userId)
+          .eq("workout_id", data.workout_id)
+          .eq("imported_activity_id", activity.id);
+        await supabase.from("workout_activity_matches").insert({
+          user_id: userId,
+          workout_id: data.workout_id,
+          imported_activity_id: activity.id,
+          match_status: "MANUALLY_MATCHED",
+          confidence_score: 100,
+          match_reason: "Manual entry — linked by user",
+          distance_score: 0,
+          time_score: 0,
+          type_score: 0,
+          intensity_score: 0,
+        });
+        await supabase.from("workouts").update({ status: "COMPLETED" }).eq("id", data.workout_id);
+        await upsertWorkoutComparison(
+          supabase,
+          userId,
+          data.workout_id,
+          actualFromImportedActivity(activity),
+        );
+      }
+    }
+
+    return { activity };
+  });
+
+
+
 export const listActivities = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
