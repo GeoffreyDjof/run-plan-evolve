@@ -9,6 +9,10 @@ import {
   type MatchableActivity,
 } from "@/lib/activities/matching";
 import { complianceScore } from "@/lib/activities/compliance";
+import {
+  upsertWorkoutComparison,
+  actualFromImportedActivity,
+} from "@/lib/activities/comparison.server";
 import type { WorkoutType } from "@/lib/training/types";
 
 // ----- Schemas -----
@@ -179,6 +183,13 @@ export const saveActivity = createServerFn({ method: "POST" })
             confidence: best.score.confidence,
             reason: best.score.reason,
           };
+          // Auto-write comparison for the planned/actual pair
+          await upsertWorkoutComparison(
+            supabase,
+            userId,
+            best.workout.id,
+            actualFromImportedActivity(activity),
+          );
           // If auto-matched, mark workout completed
           if (status === "AUTO_MATCHED") {
             await supabase
@@ -273,6 +284,7 @@ export const manualMatch = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     await supabase.from("workouts").update({ status: "COMPLETED" }).eq("id", data.workoutId);
+    await upsertWorkoutComparison(supabase, userId, data.workoutId, actualFromImportedActivity(activity));
     return { ok: true };
   });
 
