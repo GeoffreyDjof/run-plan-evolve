@@ -16,6 +16,7 @@ import {
 import { decideMissed } from "@/lib/training/missed";
 import { recalibrateWeek, shouldRecalibrate, type RecalInput } from "@/lib/training/recalibration";
 import type { WorkoutType } from "@/lib/training/types";
+import { upsertWorkoutComparison, actualFromWorkoutLog } from "@/lib/activities/comparison.server";
 
 const onboardingInput = z.object({
   name: z.string().min(1).max(60),
