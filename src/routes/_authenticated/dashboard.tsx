@@ -7,7 +7,7 @@ import { WorkoutTypeBadge, StatusChip } from "@/components/badges";
 import { paceRangeFromVMA } from "@/lib/training/paces";
 import { formatDuration, formatPace } from "@/lib/activities";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Clock, TrendingUp, Calendar, AlertTriangle, Upload, Activity } from "lucide-react";
+import { CheckCircle2, Clock, TrendingUp, Calendar, AlertTriangle, Upload, Activity, PlusCircle } from "lucide-react";
 import { checkBackToBackHard, checkLoadJump } from "@/lib/training/safety";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
