@@ -90,6 +90,10 @@ function WorkoutDetail() {
         </div>
       )}
 
+      {cmp?.comparison && <ComparisonBlock c={cmp.comparison} />}
+
+
+
       <div className="space-y-2 pt-2">
         <CompleteDrawer workoutId={id} durationGuess={w.estimated_duration_minutes ?? 45} onDone={invalidate} />
         <ReplaceDrawer workout={w} onDone={invalidate} />
