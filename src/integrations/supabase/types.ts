@@ -476,6 +476,8 @@ export type Database = {
       }
       workout_comparisons: {
         Row: {
+          comment: string | null
+          completed_source_type: string
           completed_workout_id: string
           created_at: string
           distance_delta_km: number | null
@@ -488,6 +490,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          comment?: string | null
+          completed_source_type?: string
           completed_workout_id: string
           created_at?: string
           distance_delta_km?: number | null
@@ -500,6 +504,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          comment?: string | null
+          completed_source_type?: string
           completed_workout_id?: string
           created_at?: string
           distance_delta_km?: number | null
